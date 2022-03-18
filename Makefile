@@ -37,7 +37,8 @@ all: $(BINDIR)/xsteepDescent \
 	$(BINDIR)/xcompute_azi_params \
 	$(BINDIR)/xsrc_mask \
 	$(BINDIR)/xcompute_vp_vs_hess \
-	$(BINDIR)/xrandom_probe_lbfgs
+	$(BINDIR)/xrandom_probe_lbfgs \
+	$(BINDIR)/xperturb_model
 
 
 # ###################
@@ -115,6 +116,9 @@ $(OBJDIR)/gpp_utils.o: $(SRCDIR)/gpp_utils.f90 $(objects)
 $(OBJDIR)/gaussian_perturb_single.o: $(SRCDIR)/gaussian_perturb_single.f90 $(objects) $(OBJDIR)/gpp_utils.o
 	$(MPIFC) $(FCFLAGS) -c $< -o $@ $(adios_inc)
 
+$(OBJDIR)/perturb_model_parameters.o: $(SRCDIR)/perturb_model_parameters.f90 $(objects) $(OBJDIR)/gpp_utils.o
+	$(MPIFC) $(FCFLAGS) -c $< -o $@ $(adios_inc)
+
 $(OBJDIR)/gaussian_perturb_multiple.o: $(SRCDIR)/gaussian_perturb_multiple.f90 $(objects) $(OBJDIR)/gpp_utils.o
 	$(MPIFC) $(FCFLAGS) -c $< -o $@ $(adios_inc)
 
@@ -166,7 +170,6 @@ $(BINDIR)/xbp2binary: $(OBJDIR)/convert_adios_to_binary.o $(OBJDIR)/convert_adio
 
 $(BINDIR)/xascii2bp: $(OBJDIR)/convert_ascii_to_adios.o $(OBJDIR)/convert_adios_subs.o $(objects)
 	$(MPIFC) $(FCFLAGS) -o $@ $^ $(adios_link) $(adios_inc)
-
 $(BINDIR)/xsteepDescent: $(OBJDIR)/steepDescent.o $(objects)
 	$(MPIFC) $(FCFLAGS) -o $@ $^ $(adios_link) $(adios_inc)
 
@@ -186,6 +189,9 @@ $(BINDIR)/xblend_model: $(OBJDIR)/blend_model.o $(objects)
 	$(MPIFC) $(FCFLAGS) -o $@ $^ $(adios_link) $(adios_inc)
 
 $(BINDIR)/xgauss_single: $(OBJDIR)/gaussian_perturb_single.o $(objects) $(OBJDIR)/gpp_utils.o
+	$(MPIFC) $(FCFLAGS) -o $@ $^ $(adios_link) $(adios_inc)
+
+$(BINDIR)/xperturb_model: $(OBJDIR)/perturb_model_parameters.o $(objects) $(OBJDIR)/gpp_utils.o
 	$(MPIFC) $(FCFLAGS) -o $@ $^ $(adios_link) $(adios_inc)
 
 $(BINDIR)/xgauss_multiple: $(OBJDIR)/gaussian_perturb_multiple.o $(objects) $(OBJDIR)/gpp_utils.o

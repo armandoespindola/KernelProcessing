@@ -9,8 +9,8 @@ module global_var
   ! values from the mesh
   double precision, parameter :: GAUSSALPHA = 0.d0, GAUSSBETA = 0.d0
   integer, parameter :: NGLLX = 5, NGLLY = NGLLX, NGLLZ = NGLLX
-  integer, parameter :: NSPEC_CRUST_MANTLE = 10496
-  integer, parameter :: NGLOB_CRUST_MANTLE = 699193
+  integer, parameter :: NSPEC_CRUST_MANTLE = 20016
+  integer, parameter :: NGLOB_CRUST_MANTLE = 1322849 
   integer, parameter :: NSPEC = NSPEC_CRUST_MANTLE
   integer, parameter :: NGLOB = NGLOB_CRUST_MANTLE
 
