@@ -322,12 +322,11 @@ module global_var
 
     do i=1,NPAR_GLOB
        if (myrank==0) then 
-          write(*, '(A,A)'), "kernel names:   ", trim(KERNEL_NAMES_GLOB(i))
+          write(*, '(A,X,I2,X,A,X,F4.2)'),trim(MODEL_NAMES_GLOB(i)),UPDATE_FLAG_GLOB(i), &
+               trim(KERNEL_NAMES_GLOB(i)), SCALING_GLOB(i)
        endif
-       if (myrank==0) then 
-          write(*, '(A,A)'), "model names:   ", trim(MODEL_NAMES_GLOB(i))
-       endif
-    enddo   
+    enddo
+    
     close(fh)
     
   end subroutine init_kernel_par
@@ -370,11 +369,24 @@ module global_var
     kernel_name(:len_str)=trim(par_data(3))
 
     ! update model flag
-    read(par_data(2),*)update_model
+
+    if (len(trim(par_data(2))) > 0) then
+       read(par_data(2),*)update_model
+    else
+       update_model=0
+    endif
+
+    if (len(trim(par_data(4))) > 0) then
+       read(par_data(4),*)scaling
+    else
+       scaling=0
+    endif
+    
+    !
 
     ! scaling
 
-    read(par_data(4),*)scaling
+    !read(par_data(4),*)scaling
     
     
     
