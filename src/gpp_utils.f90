@@ -7,25 +7,30 @@ module gpp_utils
   use AdiosIO
   use adios_read_mod
   use global_var, only : myrank, nprocs, NGLLX, NGLLY, NGLLZ, NSPEC, NGLOB, CUSTOM_REAL
-  use global_var, only : R_EARTH_KM, DEGREES_TO_RADIANS
+  use global_var, only : R_EARTH_KM, DEGREES_TO_RADIANS,NPAR_GLOB,KERNEL_NAMES_GLOB
   use global_var, only : init_mpi, exit_mpi, max_all_all_cr, min_all_all_cr
 
   implicit None
 
-  integer, parameter :: NKERNELS = 4
-  character(len=500), dimension(NKERNELS), parameter :: kernel_names = &
-    (/character(len=500) :: "bulk_c_kl_crust_mantle", &
-                            "bulk_betav_kl_crust_mantle", &
-                            "bulk_betah_kl_crust_mantle", &
-                            "eta_kl_crust_mantle"/)
+  !integer, parameter :: NKERNELS = 4
+  !character(len=500), dimension(NKERNELS), parameter :: kernel_names = &
+  !  (/character(len=500) :: "bulk_c_kl_crust_mantle", &
+  !                          "bulk_betav_kl_crust_mantle", &
+  !                          "bulk_betah_kl_crust_mantle", &
+  !                          "eta_kl_crust_mantle"/)
   integer, parameter :: bulk_c_kl_idx = 1, betav_kl_idx = 2, betah_kl_idx = 3, &
                         eta_kl_idx = 4
 
   ! Kernel array
-  real(kind=CUSTOM_REAL), dimension(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNELS) :: kernels
+!  real(kind=CUSTOM_REAL), dimension(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_GLOB) :: kernels
+
+  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable :: kernels
+  
   ! model array
   integer, dimension(NGLLX, NGLLY, NGLLZ, NSPEC) :: ibool
   real(kind=CUSTOM_REAL), dimension(NGLOB) :: x_glob, y_glob, z_glob
+
+ 
 
   contains
 
@@ -126,6 +131,7 @@ module gpp_utils
     integer :: ispec, i, j, k, iglob
     real(kind=CUSTOM_REAL) :: gauss, distv, disth, r0, r1, ratio, theta
     real(kind=CUSTOM_REAL) :: vmax, vmin
+
 
     if (myrank == 0) then
       write(*, '(A)') "|--> Gaussian HV"
@@ -274,5 +280,13 @@ module gpp_utils
     call read_bp_file_real(input_solver_file, "reg1/y_global", y_glob)
     call read_bp_file_real(input_solver_file, "reg1/z_global", z_glob)
   end subroutine read_model_file
+
+  subroutine init_vars()
+       allocate(kernels(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_GLOB))
+  end subroutine init_vars
+
+  subroutine clean_vars()
+        deallocate(kernels)
+    end subroutine clean_vars
 
 end module gpp_utils

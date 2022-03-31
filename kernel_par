@@ -1,0 +1,8 @@
+7
+reg1/vpv,0
+reg1/vph,0
+reg1/vsv,1,kernel_vsv
+reg1/vsh,1,kernel_vsh
+reg1/eta,0
+reg1/rho,0
+reg1/qmu,1,kernel_kmu

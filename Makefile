@@ -9,7 +9,7 @@ MPIFC=mpif90
 FCFLAGS=-O3 -Wall -J $(OBJDIR) -I $(OBJDIR)
 
 adios_link=$(shell adios_config -lf)
-adios_inc=$(shell adios_config -cf)
+adios_inc=$(shell adios_config  -cf)
 
 #adios_link=$(shell /ccs/home/ccui/adios-gcc/adios_config -lf)
 #adios_inc=$(shell /ccs/home/ccui/adios-gcc/adios_config -cf)

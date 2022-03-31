@@ -16,7 +16,7 @@ program gaussian_perturb_psf
   call get_sys_args(input_solver_file, output_file)
 
   if( perturb_idx /= betav_kl_idx .or. &
-      trim(kernel_names(perturb_idx)) /= "bulk_betav_kl_crust_mantle" ) then
+      trim(KERNEL_NAMES_GLOB(perturb_idx)) /= "bulk_betav_kl_crust_mantle" ) then
     call exit_mpi("Checking perturb_idx is right (not betav perturbation now)!")
   endif
 
@@ -70,7 +70,7 @@ program gaussian_perturb_psf
   call add_gaussian_perturb_hv(900.0, -6.0, 112.0, 1.0, 200.0, 200.0, perturb_idx)
 
   if(myrank == 0) write(*, '(A)'), "|<-------- Write gaussian perturb -------->|"
-  call write_bp_file(kernels, kernel_names, "KERNELS_GROUP", output_file)
+  call write_bp_file(kernels, KERNEL_NAMES_GLOB, "KERNELS_GROUP", output_file)
 
   if(myrank == 0) write(*, '(A)'), "|<-------- Done -------->|"
   call adios_finalize(myrank, ier)

@@ -36,6 +36,12 @@ module global_var
   ! MPI variable that need to be init in the main program
   integer :: myrank, nprocs
 
+  !parameters for kernel processing
+  integer :: NPAR_GLOB
+  character(len=500), dimension(:),allocatable :: KERNEL_NAMES_GLOB,MODEL_NAMES_GLOB
+  integer,dimension(:),allocatable :: UPDATE_FLAG_GLOB
+  real(kind=CUSTOM_REAL),dimension(:),allocatable :: SCALING_GLOB
+
   contains
 
   subroutine sum_all_all_cr(sendbuf, recvbuf)
@@ -281,5 +287,98 @@ module global_var
     call MPI_COMM_SIZE(MPI_COMM_WORLD, nprocs, ier)
     if (myrank == 0) print*, "MPI init with nprocs=", nprocs
   end subroutine init_mpi
+
+  subroutine init_kernel_par()
+
+    integer :: fh = 1001
+    integer :: i,ier
+    character(len=500) :: line
+
+    ! OPENING FILE TO READ PARAMETERS
+
+    open(fh,file="kernel_par", status='old')
+    read(fh,*) NPAR_GLOB
+
+    if (myrank ==  0) print*, "########## Number of parameters for Kernel Processing #########"
+    if (myrank ==  0) print*, "Npar: ",NPAR_GLOB
+
+    allocate(KERNEL_NAMES_GLOB(NPAR_GLOB),MODEL_NAMES_GLOB(NPAR_GLOB),UPDATE_FLAG_GLOB(NPAR_GLOB), &
+         SCALING_GLOB(NPAR_GLOB),stat=ier)
+
+    KERNEL_NAMES_GLOB=""
+    MODEL_NAMES_GLOB=""
+    UPDATE_FLAG_GLOB=0
+    SCALING_GLOB=0.0d0
+
+    if (ier /= 0) stop " Error Allocating parameter for Kernel Processing "
+
+
+
+    do i=1,NPAR_GLOB
+       read(fh, '(A)') line
+      call get_par(line,MODEL_NAMES_GLOB(i),UPDATE_FLAG_GLOB(i),KERNEL_NAMES_GLOB(i),SCALING_GLOB(i))
+    end do
+
+
+    do i=1,NPAR_GLOB
+       if (myrank==0) then 
+          write(*, '(A,A)'), "kernel names:   ", trim(KERNEL_NAMES_GLOB(i))
+       endif
+       if (myrank==0) then 
+          write(*, '(A,A)'), "model names:   ", trim(MODEL_NAMES_GLOB(i))
+       endif
+    enddo   
+    close(fh)
+    
+  end subroutine init_kernel_par
+
+
+
+  subroutine get_par(line,model_name,update_model,kernel_name,scaling)
+    character(len=*),intent(inout) :: line,model_name,kernel_name
+    integer,intent(inout):: update_model
+    real(kind=CUSTOM_REAL),intent(inout)::scaling
+    integer :: idx0,idx1,offset,par,len_str
+    character(len=500),dimension(4) :: par_data=""
+    
+
+    idx0=1
+    idx1=len(line)
+    par=1
+
+    do while (index(line(idx0:),",") > 0 )
+       offset = index(line(idx0:),",")
+       idx1 = offset + idx0
+       !print*,line(idx0:idx1-2),idx0,idx1
+       par_data(par)(:len(line(idx0:idx1-1))) = line(idx0:idx1-2)
+       idx0 = idx1
+       par= par + 1
+    end do
+
+    if (len(trim(line(idx0:))) > 0 ) then
+       !print*, "last ", (line(idx0-1:))       
+       par_data(par)(:len(trim(line(idx0:))))=trim(line(idx0:))
+    endif
+
+    ! model_name
+
+    len_str=len(trim(par_data(1)))
+    model_name(:len_str)=trim(par_data(1))
+
+    ! kernel_name
+    len_str=len(trim(par_data(3)))
+    kernel_name(:len_str)=trim(par_data(3))
+
+    ! update model flag
+    read(par_data(2),*)update_model
+
+    ! scaling
+
+    read(par_data(4),*)scaling
+    
+    
+    
+  end subroutine get_par
+  
 
 end module global_var

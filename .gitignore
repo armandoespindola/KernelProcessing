@@ -28,6 +28,7 @@
 
 # Garbage
 *.*~
+*~
 # Executables
 *.exe
 *.out

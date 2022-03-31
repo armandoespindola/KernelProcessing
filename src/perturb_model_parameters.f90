@@ -8,13 +8,18 @@ module perturb_model_parameters
 
   ! ======================================================
   ! MODELS
-  integer, parameter :: NMODELS = 4
-  character(len=500), dimension(NMODELS), parameter :: model_names = &
-    (/character(len=500) :: "reg1/vp", "reg1/vs", "reg1/rho", &
-                            "reg1/qmu" /)
+  !integer, parameter :: NMODELS = 4
+  !character(len=500), dimension(NMODELS), parameter :: model_names = &
+  !  (/character(len=500) :: "reg1/vp", "reg1/vs", "reg1/rho", &
+  !                          "reg1/qmu" /)
   ! MODEL ARRAY
-  real(kind=CUSTOM_REAL), dimension(NGLLX,NGLLY,NGLLZ,NSPEC,NMODELS) :: models = 0.0
-  real(kind=CUSTOM_REAL), dimension(NGLLX,NGLLY,NGLLZ,NSPEC,NMODELS) :: models_new = 0.0
+  !real(kind=CUSTOM_REAL), dimension(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_GLOB) :: models = 0.0
+  !real(kind=CUSTOM_REAL), dimension(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_GLOB) :: models_new = 0.0
+
+  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable :: models
+  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable :: models_new
+
+  
   
 contains
 
@@ -46,7 +51,7 @@ program main
   use mpi
   use perturb_model_parameters
   use adios_read_mod
-  use global_var, only: myrank,CUSTOM_REAL
+  use global_var, only: myrank,CUSTOM_REAL,init_kernel_par,NGLLX,NGLLY,NGLLZ,NPAR_GLOB,MODEL_NAMES_GLOB,NSPEC
   use gpp_utils
 
   implicit none
@@ -58,10 +63,16 @@ program main
   real(kind=CUSTOM_REAL),dimension(8) :: lon
   real(kind=CUSTOM_REAL):: fact
   integer::iz,ilat,ilon,idx_par
-  
+
 
   call init_mpi()
 
+
+  call init_kernel_par()
+
+  allocate(models(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_GLOB),models_new(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_GLOB))
+  
+  call init_vars()
 
 
   call get_args(input_file,input_solver_file, output_dir)
@@ -70,7 +81,7 @@ program main
                               "verbose=1", ier)
 
   if (myrank==0) print*, "### READING MODEL PARAMETERS ####"
-  call read_bp_file_real(input_file,model_names,models)
+  call read_bp_file_real(input_file,MODEL_NAMES_GLOB,models)
 
 
   if (myrank==0) print*, "### READING SOLVER FILE ####"
@@ -130,10 +141,11 @@ program main
   ! stores new model in files
   output_file = trim(output_dir)//'/model_gll.bp'
   if(myrank == 0) print*, "New model file: ", trim(output_file)
-  call write_bp_file(models_new, model_names, "KERNELS_GROUP", output_file)
+ call write_bp_file(models_new, MODEL_NAMES_GLOB, "KERNELS_GROUP", output_file)
 
 
-  call adios_finalize(myrank, ier)
+ call adios_finalize(myrank, ier)
+ call clean_vars()
   call MPI_FINALIZE(ier)
   
 

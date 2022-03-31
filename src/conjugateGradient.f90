@@ -150,15 +150,21 @@ program main
   use ConjugateGradient
 
   integer, parameter:: NKERNEL=4
-  character(len=500), dimension(NKERNEL):: kernel_names = &
-    (/character(len=500) :: "bulk_betah_kl_crust_mantle",&
-                            "bulk_betav_kl_crust_mantle",&
-                            "bulk_c_kl_crust_mantle",&
-                            "eta_kl_crust_mantle"/)
+  !character(len=500), dimension(NKERNEL):: kernel_names = &
+  !  (/character(len=500) :: "bulk_betah_kl_crust_mantle",&
+  !                          "bulk_betav_kl_crust_mantle",&
+  !                          "bulk_c_kl_crust_mantle",&
+  !                          "eta_kl_crust_mantle"/)
 
-  real(kind=CUSTOM_REAL), dimension(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL):: gradient_0, gradient_1
-  real(kind=CUSTOM_REAL), dimension(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL):: direction_0, direction_1
-  real(kind=CUSTOM_REAL), dimension(NGLLX, NGLLY, NGLLZ, NSPEC) :: jacobian
+  
+!  real(kind=CUSTOM_REAL), dimension(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL):: gradient_0, gradient_1
+!  real(kind=CUSTOM_REAL), dimension(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL):: direction_0, direction_1
+!  real(kind=CUSTOM_REAL), dimension(NGLLX, NGLLY, NGLLZ, NSPEC) :: jacobian
+
+
+  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable :: gradient_0, gradient_1
+  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable :: direction_0, direction_1
+  real(kind=CUSTOM_REAL), dimension(:,:,:,:),allocatable :: jacobian
 
   character(len=500) :: solver_file
   character(len=500) :: grad_0_file, grad_1_file
@@ -168,6 +174,13 @@ program main
   integer:: ier
 
   call init_mpi()
+  call init_kernel_par()
+
+  allocate(gradient_0(NGLLX, NGLLY, NGLLZ, NSPEC, NPAR_GLOB), &
+       gradient_1(NGLLX, NGLLY, NGLLZ, NSPEC, NPAR_GLOB), &
+       direction_1(NGLLX, NGLLY, NGLLZ, NSPEC, NPAR_GLOB), &
+       direction_0(NGLLX, NGLLY, NGLLZ, NSPEC, NPAR_GLOB), &
+       jacobian(NGLLX, NGLLY, NGLLZ, NSPEC))
 
   call get_sys_args(grad_0_file, grad_1_file, &
                     direction_0_file, direction_1_file, solver_file)
@@ -176,9 +189,9 @@ program main
                               "verbose=1", ier)
 
   if (myrank == 0) write(*, *) "|<----- Start Reading ----->|"
-  call read_bp_file_real(grad_0_file, kernel_names, gradient_0)
-  call read_bp_file_real(grad_1_file, kernel_names, gradient_1)
-  call read_bp_file_real(direction_0_file, kernel_names, direction_0)
+  call read_bp_file_real(grad_0_file, KERNEL_NAMES_GLOB, gradient_0)
+  call read_bp_file_real(grad_1_file, KERNEL_NAMES_GLOB, gradient_1)
+  call read_bp_file_real(direction_0_file, KERNEL_NAMES_GLOB, direction_0)
 
   if (myrank == 0) write(*, *) "|<----- Calculate Jacobian ----->|"
   call calculate_jacobian_matrix(solver_file, jacobian)
@@ -187,11 +200,14 @@ program main
   call compute_search_direction(gradient_0, gradient_1, direction_0, jacobian, direction_1)
 
   if (myrank == 0) write(*, *) "|<----- Start Writing ----->|"
-  call write_bp_file(direction_1, kernel_names, "KERNEL_GROUPS", direction_1_file)
+  call write_bp_file(direction_1, KERNEL_NAMES_GLOB, "KERNEL_GROUPS", direction_1_file)
 
   if (myrank == 0) write(*, *) "|<----- Done Writing ----->|"
 
   call adios_finalize(myrank, ier)
+
+  deallocate(gradient_0,gradient_1,direction_0,direction_1,jacobian)
+  
   call MPI_FINALIZE(ier)
 
 end program main

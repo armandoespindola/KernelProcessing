@@ -1,6 +1,6 @@
 module psf_file_mod
-  use global_var, only : CUSTOM_REAL, myrank, exit_mpi
-  use gpp_utils, only : NKERNELS, kernel_names, kernels, ibool, x_glob, y_glob, z_glob, &
+  use global_var, only : CUSTOM_REAL, myrank, exit_mpi,NPAR_GLOB,KERNEL_NAMES_GLOB,MODEL_NAMES_GLOB
+  use gpp_utils, only :  kernels, ibool, x_glob, y_glob, z_glob, &
     add_gaussian_perturb_hv, NGLLX, NGLLY, NGLLZ, NSPEC
 
   implicit none
@@ -9,7 +9,8 @@ module psf_file_mod
   real(kind=CUSTOM_REAL), dimension(:), allocatable :: latitudes, longitudes, depths
   real(kind=CUSTOM_REAL), dimension(:), allocatable :: signs, sigma_hs, sigma_vs
 
-  real(kind=CUSTOM_REAL), dimension(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNELS) :: total_kernels
+!  real(kind=CUSTOM_REAL), dimension(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNELS) :: total_kernels
+  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable :: total_kernels
 
   contains
 
@@ -92,8 +93,8 @@ end module psf_file_mod
 
 program main
   use mpi
-  use global_var, only : myrank, nprocs, CUSTOM_REAL, init_mpi, exit_mpi
-  use gpp_utils, only : read_model_file, kernel_names, write_bp_file
+  use global_var, only : myrank, nprocs, CUSTOM_REAL, init_mpi, exit_mpi,KERNEL_NAMES_GLOB,NPAR_GLOB,NSPEC,NGLLX,NGLLY,NGLLZ
+  use gpp_utils, only : read_model_file, write_bp_file
   use psf_file_mod, only : read_points_file, get_sys_args, calculate_perturbations, total_kernels
 
   implicit none
@@ -102,6 +103,9 @@ program main
   integer, parameter :: perturb_idx = 2
 
   integer :: ier
+
+
+  allocate(total_kernels(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_GLOB))
 
   call init_mpi()
   if (myrank == 0) print*, "Rank=", myrank, "/", nprocs
@@ -120,7 +124,7 @@ program main
   call calculate_perturbations(perturb_idx)
   call MPI_Barrier(MPI_COMM_WORLD, ier)
 
-  call write_bp_file(total_kernels, kernel_names, "KERNELS_GROUP", output_file)
+  call write_bp_file(total_kernels, KERNEL_NAMES_GLOB, "KERNELS_GROUP", output_file)
 
   call MPI_Barrier(MPI_COMM_WORLD, ier)
   call MPI_FINALIZE(ier)
