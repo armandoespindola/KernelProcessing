@@ -1,5 +1,5 @@
 4
-reg1/vp,0
-reg1/vs,0
-reg1/rho,0,kernel_rho
-reg1/qmu,1,kernel_kmu,0.3
+vp,0
+vs,0
+rho,0,kernel_rho
+qmu,1,kernel_kmu,0.3

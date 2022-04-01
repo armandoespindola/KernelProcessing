@@ -3,7 +3,7 @@ program main
   use adios_read_mod
   use lbfgs_subs
   use AdiosIO, only : write_bp_file, calculate_jacobian_matrix
-  use global_var, only : init_mpi,NGLLX,NGLLY,NGLLZ,NPAR_GLOB,KERNEL_NAMES_GLOB,NSPEC,init_kernel_par
+  use global_var, only : init_mpi,NGLLX,NGLLY,NGLLZ,NPAR_GLOB,KERNEL_NAMES_GLOB,NSPEC,init_kernel_par,NKERNEL_GLOB
   implicit none
 
   !integer, parameter :: NKERNELS = 4
@@ -46,8 +46,8 @@ program main
   call init_mpi()
   call init_kernel_par()
 
-  allocate(precond(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_GLOB),gradient(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_GLOB), &
-       direction(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_GLOB))
+  allocate(precond(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNEL_GLOB),gradient(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNEL_GLOB), &
+       direction(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNEL_GLOB))
 
   precond=1.0
 
@@ -57,17 +57,17 @@ program main
   if(myrank == 0) print*, "|<---- Parse Input Path File ---->|"
   call parse_input_path(input_path_file, niter, gradient_files, model_change_files)
 
-  allocate(sks(NGLLX, NGLLY, NGLLZ, NSPEC, NPAR_GLOB, niter))
-  allocate(yks(NGLLX, NGLLY, NGLLZ, NSPEC, NPAR_GLOB, niter))
+  allocate(sks(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB, niter))
+  allocate(yks(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB, niter))
 
-  call read_all_bp_files(niter, NPAR_GLOB, gradient_files, model_change_files, &
+  call read_all_bp_files(niter, NKERNEL_GLOB, gradient_files, model_change_files, &
                          KERNEL_NAMES_GLOB, gradient, yks, sks)
 
   if(myrank == 0) print*, "|<---- Calculate Jacobian ---->|"
   call calculate_jacobian_matrix(solver_file, jacobian)
 
   if(myrank == 0) print*, "|<---- L-BFGS Direction ---->|"
-  call calculate_LBFGS_direction(niter, NPAR_GLOB, jacobian, gradient, precond, yks, sks, direction)
+  call calculate_LBFGS_direction(niter, NKERNEL_GLOB, jacobian, gradient, precond, yks, sks, direction)
 
   call write_bp_file(direction, KERNEL_NAMES_GLOB, "KERNELS_GROUP", outputfn)
   if(myrank == 0) print*, "LBFGS direction saved: ", trim(outputfn)

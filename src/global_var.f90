@@ -37,10 +37,10 @@ module global_var
   integer :: myrank, nprocs
 
   !parameters for kernel processing
-  integer :: NPAR_GLOB
-  character(len=500), dimension(:),allocatable :: KERNEL_NAMES_GLOB,MODEL_NAMES_GLOB
-  integer,dimension(:),allocatable :: UPDATE_FLAG_GLOB
-  real(kind=CUSTOM_REAL),dimension(:),allocatable :: SCALING_GLOB
+  integer :: NPAR_GLOB,NKERNEL_GLOB
+  integer :: QMU_IDX
+  character(len=500), dimension(:),allocatable :: KERNEL_NAMES_GLOB,MODEL_NAMES_GLOB,MODEL_PERTURB_NAMES_GLOB
+
 
   contains
 
@@ -290,107 +290,137 @@ module global_var
 
   subroutine init_kernel_par()
 
-    integer :: fh = 1001
+    !integer :: fh = 1001
     integer :: i,ier
-    character(len=500) :: line
+    !character(len=500) :: line
+
+
+    NPAR_GLOB=4
+    NKERNEL_GLOB=1
+
+    allocate(KERNEL_NAMES_GLOB(NKERNEL_GLOB),MODEL_NAMES_GLOB(NPAR_GLOB),MODEL_PERTURB_NAMES_GLOB(NKERNEL_GLOB),stat=ier)
+    
+    
+
+    MODEL_NAMES_GLOB(1)="reg1/vp"
+    MODEL_NAMES_GLOB(2)="reg1/vs"
+    MODEL_NAMES_GLOB(3)="reg1/rho"
+    MODEL_NAMES_GLOB(4)="reg1/qmu"
+
+
+    MODEL_PERTURB_NAMES_GLOB(1)="reg1/dqmuqmu"
+
+    KERNEL_NAMES_GLOB(1)="kernel_mu"
+
+    QMU_IDX = 4
+    
 
     ! OPENING FILE TO READ PARAMETERS
 
-    open(fh,file="kernel_par", status='old')
-    read(fh,*) NPAR_GLOB
+    ! open(fh,file="kernel_par", status='old')
+    ! read(fh,*) NPAR_GLOB,NKERNEL_GLOB
 
-    if (myrank ==  0) print*, "########## Number of parameters for Kernel Processing #########"
-    if (myrank ==  0) print*, "Npar: ",NPAR_GLOB
+    ! if (myrank ==  0) print*, "########## Number of parameters for Kernel Processing #########"
+    ! if (myrank ==  0) print*, "Npar: ",NPAR_GLOB
 
-    allocate(KERNEL_NAMES_GLOB(NPAR_GLOB),MODEL_NAMES_GLOB(NPAR_GLOB),UPDATE_FLAG_GLOB(NPAR_GLOB), &
-         SCALING_GLOB(NPAR_GLOB),stat=ier)
+    ! allocate(KERNEL_NAMES_GLOB(NKERNEL_GLOB),MODEL_NAMES_GLOB(NPAR_GLOB),UPDATE_FLAG_GLOB(NPAR_GLOB), &
+    !      SCALING_GLOB(NPAR_GLOB),MODEL_PERTURB_NAMES_GLOB(NKERNEL_GLOB),stat=ier)
 
-    KERNEL_NAMES_GLOB=""
-    MODEL_NAMES_GLOB=""
-    UPDATE_FLAG_GLOB=0
-    SCALING_GLOB=0.0d0
+    ! KERNEL_NAMES_GLOB=""
+    ! MODEL_NAMES_GLOB="reg1/"
+    ! MODEL_PERTURB_NAMES_GLOB="reg1/"
+    ! UPDATE_FLAG_GLOB=0
+    ! SCALING_GLOB=0.0d0
 
-    if (ier /= 0) stop " Error Allocating parameter for Kernel Processing "
+    ! if (ier /= 0) stop " Error Allocating parameter for Kernel Processing "
 
 
 
-    do i=1,NPAR_GLOB
-       read(fh, '(A)') line
-      call get_par(line,MODEL_NAMES_GLOB(i),UPDATE_FLAG_GLOB(i),KERNEL_NAMES_GLOB(i),SCALING_GLOB(i))
-    end do
+    ! do i=1,NPAR_GLOB
+    !    read(fh, '(A)') line
+    !   call get_par(line,i)
+    ! end do
 
 
     do i=1,NPAR_GLOB
        if (myrank==0) then 
-          write(*, '(A,X,I2,X,A,X,F4.2)'),trim(MODEL_NAMES_GLOB(i)),UPDATE_FLAG_GLOB(i), &
-               trim(KERNEL_NAMES_GLOB(i)), SCALING_GLOB(i)
+          write(*, '(A,A)')"MODEL NAMES: " , trim(MODEL_NAMES_GLOB(i))
+       endif
+    enddo
+
+    do i=1,NKERNEL_GLOB
+       if (myrank==0) then 
+          write(*, '(A,A,X,A)')"KERNEL NAMES: " , trim(KERNEL_NAMES_GLOB(i)),trim(MODEL_PERTURB_NAMES_GLOB(i))
        endif
     enddo
     
-    close(fh)
+    
+    ! close(fh)
     
   end subroutine init_kernel_par
 
 
 
-  subroutine get_par(line,model_name,update_model,kernel_name,scaling)
-    character(len=*),intent(inout) :: line,model_name,kernel_name
-    integer,intent(inout):: update_model
-    real(kind=CUSTOM_REAL),intent(inout)::scaling
-    integer :: idx0,idx1,offset,par,len_str
-    character(len=500),dimension(4) :: par_data=""
+  ! subroutine get_par(line,iline)
+  !   character(len=*),intent(inout) :: line
+  !   integer,intent(inout) :: iline
+  !   integer :: idx0,idx1,offset,par,len_str
+  !   character(len=500),dimension(4) :: par_data=""
     
 
-    idx0=1
-    idx1=len(line)
-    par=1
+  !   idx0=1
+  !   idx1=len(line)
+  !   par=1
 
-    do while (index(line(idx0:),",") > 0 )
-       offset = index(line(idx0:),",")
-       idx1 = offset + idx0
-       !print*,line(idx0:idx1-2),idx0,idx1
-       par_data(par)(:len(line(idx0:idx1-1))) = line(idx0:idx1-2)
-       idx0 = idx1
-       par= par + 1
-    end do
+  !   do while (index(line(idx0:),",") > 0 )
+  !      offset = index(line(idx0:),",")
+  !      idx1 = offset + idx0
+  !      !print*,line(idx0:idx1-2),idx0,idx1
+  !      par_data(par)(:len(line(idx0:idx1-1))) = line(idx0:idx1-2)
+  !      idx0 = idx1
+  !      par= par + 1
+  !   end do
 
-    if (len(trim(line(idx0:))) > 0 ) then
-       !print*, "last ", (line(idx0-1:))       
-       par_data(par)(:len(trim(line(idx0:))))=trim(line(idx0:))
-    endif
+  !   if (len(trim(line(idx0:))) > 0 ) then
+  !      !print*, "last ", (line(idx0-1:))       
+  !      par_data(par)(:len(trim(line(idx0:))))=trim(line(idx0:))
+  !   endif
 
-    ! model_name
+  !   ! model_name
 
-    len_str=len(trim(par_data(1)))
-    model_name(:len_str)=trim(par_data(1))
-
-    ! kernel_name
-    len_str=len(trim(par_data(3)))
-    kernel_name(:len_str)=trim(par_data(3))
-
-    ! update model flag
-
-    if (len(trim(par_data(2))) > 0) then
-       read(par_data(2),*)update_model
-    else
-       update_model=0
-    endif
-
-    if (len(trim(par_data(4))) > 0) then
-       read(par_data(4),*)scaling
-    else
-       scaling=0
-    endif
+  !   len_str=len(trim(par_data(1)))
+  !   MODEL_NAMES_GLOB(iline)=trim(MODEL_NAMES_GLOB(iline)) // trim(par_data(1))
     
-    !
+  !   MODEL_PERTURB_NAMES_GLOB(iline)=trim(MODEL_PERTURB_NAMES_GLOB(iline)) // "d" // trim(par_data(1)) // &
+  !        trim(par_data(1))
+    
+  !   ! kernel_name
+  !   len_str=len(trim(par_data(3)))
+  !   KERNEL_NAMES_GLOB(iline)=trim(par_data(3))
 
-    ! scaling
+  !   ! update model flag
 
-    !read(par_data(4),*)scaling
+  !   if (len(trim(par_data(2))) > 0) then
+  !      read(par_data(2),*)UPDATE_FLAG_GLOB(iline)
+  !   else
+  !      UPDATE_FLAG_GLOB(iline)=0
+  !   endif
+
+  !   if (len(trim(par_data(4))) > 0) then
+  !      read(par_data(4),*) SCALING_GLOB(iline)
+  !   else
+  !      SCALING_GLOB(iline)=0
+  !   endif
+    
+  !   !
+
+  !   ! scaling
+
+  !   !read(par_data(4),*)scaling
     
     
     
-  end subroutine get_par
+  ! end subroutine get_par
   
 
 end module global_var

@@ -50,7 +50,7 @@ module model_update_par
   use mpi
   use global_var, only : myrank, nprocs, NGLLX, NGLLY, NGLLZ, NSPEC, NGLOB, CUSTOM_REAL
   use global_var, only : max_all_all_cr, min_all_all_cr, init_mpi, exit_mpi
-  use global_var, only : KERNEL_NAMES_GLOB,MODEL_NAMES_GLOB,MODEL_PERTURB_NAMES_GLOB,NPAR_GLOB
+  use global_var, only : KERNEL_NAMES_GLOB,MODEL_NAMES_GLOB,MODEL_PERTURB_NAMES_GLOB,NPAR_GLOB,NKERNEL_GLOB
   use global_var, only : init_kernel_par
   use AdiosIO
 
@@ -98,9 +98,9 @@ module model_update_par
   ! ! model updates
   !   real(kind=CUSTOM_REAL), dimension(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNELS) :: dmodels = 0.0
     
-  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:) :: kernels
+  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:) , allocatable:: kernels
   ! model updates
-  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:) :: dmodels
+  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:), allocatable :: dmodels
 
   ! ======================================================
   ! MESH information
@@ -108,7 +108,7 @@ module model_update_par
   integer, dimension(NGLLX, NGLLY, NGLLZ, NSPEC) :: ibool
   integer, dimension(NSPEC) :: idoubling
   real(kind=CUSTOM_REAL), dimension(NGLLX, NGLLY, NGLLZ, NSPEC) :: jacobian
-  integer :: NPAR_M
+  integer :: npar_m,nkernel
 
 contains
 
@@ -118,13 +118,14 @@ contains
     integer :: ier
 
     ! Initialize parameter Kernel Processing
-    init_kernel_par()
-    NPAR_M = NPAR_GLOB
+    call init_kernel_par()
+    npar_m = NPAR_GLOB
+    nkernel = NKERNEL_GLOB
     ! Allocates memory for variables in model_par
     allocate(models(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_M), &
          models_new(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_M), &
-         kernels(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_M), &
-         dmodels(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_M),stat=ier)
+         kernels(NGLLX,NGLLY,NGLLZ,NSPEC,nkernel), &
+         dmodels(NGLLX,NGLLY,NGLLZ,NSPEC,nkernel),stat=ier)
 
     models=0.0d0
     models_new=0.0d0
@@ -206,7 +207,7 @@ contains
 
     ! integral
     if(myrank == 0) print*, "Integral of Kernels: "
-    do i = 1, NKERNELS
+    do i = 1, nkernel
       call Parallel_ComputeIntegral(kernels(:, :, :, :, i), jacobian, integl)
       if(myrank == 0) write(*, '(4X,A30,A,ES16.8)') trim(KERNEL_NAMES_GLOB(i)), ": ", integl
     enddo
@@ -216,7 +217,7 @@ contains
 
     ! norm
     if(myrank == 0) print*, "Norm of Kernels:"
-    do i = 1, NKERNELS
+    do i = 1, nkernel
       call sum_all_all_cr(sum(kernels(:, :, :, :, i) * kernels(:, :, :, :, i)), norml)
       norml = sqrt(norml)
       if(myrank == 0) write(*, '(A30, A, ES16.8)') trim(KERNEL_NAMES_GLOB(i)), ": ", norml
@@ -241,7 +242,7 @@ contains
 
     real(kind=CUSTOM_REAL), dimension(:),allocatable:: vmax,global_vmax
 
-    allocate(vmax(NPAR_M),global_vmax(NPAR_M))
+    allocate(vmax(nkernel),global_vmax(nkernel))
     
     ! vmax = 0.0
     ! global_vmax = 0.0
@@ -281,7 +282,7 @@ contains
     ! endif
 
 
-    do i=1,NPAR_M
+    do i=1,nkernel
        vmax(i) = maxval(abs(kernels(:, :, :, :, i)))
     end do
 
@@ -289,7 +290,7 @@ contains
     if(myrank == 0) print*, "Initial Model Update (before norm): "
     call stats_value_range(kernels, KERNEL_NAMES_GLOB)
 
-    do i=1,NPAR_M
+    do i=1,nkernel
        call max_all_all_cr(vmax(i), global_vmax(i))
     enddo
 
@@ -306,131 +307,43 @@ contains
     call stats_value_range(dmodels, KERNEL_NAMES_GLOB)
 
 
-    deallocate(vmax,global_vmax,global_vmax_all)
+    deallocate(vmax,global_vmax)
 
   end subroutine get_model_change
 
-  subroutine update_model()
-    use global_var , only : FOUR_THIRDS, IFLAG_80_MOHO, IFLAG_220_80, IFLAG_670_220
+  subroutine update_model_qmu()
+    use global_var , only : FOUR_THIRDS, IFLAG_80_MOHO, IFLAG_220_80, IFLAG_670_220,QMU_IDX
     
     ! model update:
-    ! transverse isotropic update only in layer Moho to 220
-    ! (where SPECFEM3D_GLOBE considers TISO)
-    ! everywhere else uses an isotropic update
-    
-    real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable :: model_dm
-
-
+    real(kind=CUSTOM_REAL), dimension(NGLLX,NGLLY,NGLLZ,NSPEC) :: model_dqmu
+    real(kind=CUSTOM_REAL) :: qmu0
     integer :: i, j, k, ispec
-    real(kind=CUSTOM_REAL),dimension(:),allocatable :: m0
-    real(kind=CUSTOM_REAL)dimension(:),allocatable :: m1
 
 
-
-    allocate(model_dm(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_M))
-
-    model_dbulk  = dmodels(:, :, :, :, bulk_c_kl_idx)
-    model_dbetav = dmodels(:, :, :, :, betav_kl_idx)
-    model_dbetah = dmodels(:, :, :, :, betah_kl_idx)
-    model_deta   = dmodels(:, :, :, :, eta_kl_idx)
-
+    model_dqmu = dmodels(:,:,:,:,QMU_IDX)
+    models_new = models
+    
     do ispec = 1, NSPEC
       do k = 1, NGLLZ
         do j = 1, NGLLY
-          do i = 1, NGLLX
-            ! initial model values
-            alphav0 = models(i,j,k,ispec,vpv_idx)
-            alphah0 = models(i,j,k,ispec,vph_idx)
-            betav0  = models(i,j,k,ispec,vsv_idx)
-            betah0  = models(i,j,k,ispec,vsh_idx)
-            eta0    = models(i,j,k,ispec,eta_idx)
-            rho0    = models(i,j,k,ispec,rho_idx)
+           do i = 1, NGLLX
 
-            eta1    = 0._CUSTOM_REAL
-            betav1  = 0._CUSTOM_REAL
-            betah1  = 0._CUSTOM_REAL
-            rho1    = 0._CUSTOM_REAL
-            alphav1 = 0._CUSTOM_REAL
-            alphah1 = 0._CUSTOM_REAL
+              qmu0 = models(i,j,k,ispec,QMU_IDX)
+              models_new(i,j,k,ispec,QMU_IDX) = qmu0 * (model_dqmu(i,j,k,ispec) + 1.0 )
 
-            ! do not use transverse isotropy except if element is between d220 and Moho
-            if(.not. ( idoubling(ispec)==IFLAG_670_220 .or. idoubling(ispec)==IFLAG_220_80 &
-                       .or. idoubling(ispec)==IFLAG_80_MOHO) ) then
-
-              ! isotropic model update
-              ! no eta perturbation, since eta = 1 in isotropic media
-              eta1 = eta0
-
-              ! shear values
-              ! isotropic kernel K_beta = K_betav + K_betah
-              ! with same scaling step_length the model update dbeta_iso = dbetav + dbetah
-              ! note:
-              !   this step length can be twice as big as that given by the input
-              dbetaiso = model_dbetav(i,j,k,ispec) + model_dbetah(i,j,k,ispec)
-              betav1 = betav0 * exp( dbetaiso )
-              betah1 = betah0 * exp( dbetaiso )
-              ! note: betah is probably not really used in isotropic layers
-              !         (see SPECFEM3D_GLOBE/get_model.f90)
-
-              ! density: uses scaling relation with isotropic shear perturbations
-              !               dln rho = RHO_SCALING * dln betaiso
-              rho1 = rho0 * exp( RHO_SCALING * dbetaiso )
-
-              ! alpha values
-              dbulk = model_dbulk(i,j,k,ispec)
-              alphav1 = sqrt( alphav0**2 * exp(2.0*dbulk) + FOUR_THIRDS * betav0**2 * ( &
-                                  exp(2.0*dbetaiso) - exp(2.0*dbulk) ) )
-
-              alphah1 = sqrt( alphah0**2 * exp(2.0*dbulk) + FOUR_THIRDS * betah0**2 * ( &
-                                  exp(2.0*dbetaiso) - exp(2.0*dbulk) ) )
-              ! note: alphah probably not used in SPECFEM3D_GLOBE
-            else
-              ! transverse isotropic model update
-              ! eta value : limits updated values for eta range constraint
-              eta1 = eta0 * exp( model_deta(i,j,k,ispec) )
-
-              if( eta1 < LIMIT_ETA_MIN ) eta1 = LIMIT_ETA_MIN
-              if( eta1 > LIMIT_ETA_MAX ) eta1 = LIMIT_ETA_MAX
-
-              ! shear values
-              betav1 = betav0 * exp( model_dbetav(i,j,k,ispec) )
-              betah1 = betah0 * exp( model_dbetah(i,j,k,ispec) )
-
-              ! density: uses scaling relation with Voigt average of shear perturbations
-              betaiso0 = sqrt(  ( 2.0 * betav0**2 + betah0**2 ) / 3.0 )
-              betaiso1 = sqrt(  ( 2.0 * betav1**2 + betah1**2 ) / 3.0 )
-              dbetaiso = log( betaiso1 / betaiso0 )
-              rho1 = rho0 * exp( RHO_SCALING * dbetaiso )
-
-              ! alpha values
-              dbulk = model_dbulk(i,j,k,ispec)
-              alphav1 = sqrt( alphav0**2 * exp(2.0*dbulk) &
-                              + FOUR_THIRDS * betav0**2 * ( &
-                                  exp(2.0*model_dbetav(i,j,k,ispec)) - exp(2.0*dbulk) ) )
-
-              alphah1 = sqrt( alphah0**2 * exp(2.0*dbulk) &
-                              + FOUR_THIRDS * betah0**2 * ( &
-                                  exp(2.0*model_dbetah(i,j,k,ispec)) - exp(2.0*dbulk) ) )
-
-            endif
-            ! stores new model values
-            models_new(i,j,k,ispec,vpv_idx) = alphav1
-            models_new(i,j,k,ispec,vph_idx) = alphah1
-            models_new(i,j,k,ispec,vsv_idx) = betav1
-            models_new(i,j,k,ispec,vsh_idx) = betah1
-            models_new(i,j,k,ispec,eta_idx) = eta1
-            models_new(i,j,k,ispec,rho_idx) = rho1
-          enddo
+             
+           enddo
         enddo
-      enddo
-    enddo
-
+     enddo
+  enddo
+  
+        
     if(myrank == 0) print *, "Old Model:"
     call stats_value_range(models, MODEL_NAMES_GLOB)
     if(myrank == 0) print *, "New Model:"
     call stats_value_range(models_new, MODEL_NAMES_GLOB)
 
-  end subroutine update_model
+  end subroutine update_model_qmu
 
   subroutine store_perturbations(outputfile)
     character(len=*),intent(in) :: outputfile
@@ -508,6 +421,8 @@ program main
 
   call init_mpi()
 
+  call init_module_par()
+
   call get_sys_args(step_fac, input_model_file, input_solver_file, &
                     input_kernel_file, outputdir)
 
@@ -532,7 +447,7 @@ program main
   ! compute new model in terms of alpha, beta, eta and rho
   ! (see also Carl's Latex notes)
   if(myrank == 0) print*, "|<---- Apply Model Update --->|"
-  call update_model()
+  call update_model_qmu()
 
   if(myrank == 0) print*, "|<---- Save Output --->|"
   call save_output_files(outputdir)

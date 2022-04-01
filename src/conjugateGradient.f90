@@ -149,7 +149,7 @@ program main
   use AdiosIO
   use ConjugateGradient
 
-  integer, parameter:: NKERNEL=4
+!  integer, parameter:: NKERNEL=4
   !character(len=500), dimension(NKERNEL):: kernel_names = &
   !  (/character(len=500) :: "bulk_betah_kl_crust_mantle",&
   !                          "bulk_betav_kl_crust_mantle",&
@@ -176,10 +176,10 @@ program main
   call init_mpi()
   call init_kernel_par()
 
-  allocate(gradient_0(NGLLX, NGLLY, NGLLZ, NSPEC, NPAR_GLOB), &
-       gradient_1(NGLLX, NGLLY, NGLLZ, NSPEC, NPAR_GLOB), &
-       direction_1(NGLLX, NGLLY, NGLLZ, NSPEC, NPAR_GLOB), &
-       direction_0(NGLLX, NGLLY, NGLLZ, NSPEC, NPAR_GLOB), &
+  allocate(gradient_0(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB), &
+       gradient_1(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB), &
+       direction_1(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB), &
+       direction_0(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB), &
        jacobian(NGLLX, NGLLY, NGLLZ, NSPEC))
 
   call get_sys_args(grad_0_file, grad_1_file, &

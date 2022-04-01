@@ -38,7 +38,8 @@ all: $(BINDIR)/xsteepDescent \
 	$(BINDIR)/xsrc_mask \
 	$(BINDIR)/xcompute_vp_vs_hess \
 	$(BINDIR)/xrandom_probe_lbfgs \
-	$(BINDIR)/xperturb_model
+	$(BINDIR)/xperturb_model \
+	$(BINDIR)/xupdate_model_par
 
 
 # ###################
@@ -102,6 +103,9 @@ $(OBJDIR)/lbfgs.o: $(SRCDIR)/lbfgs.f90 $(OBJDIR)/lbfgs_subs.o $(objects)
 	$(MPIFC) $(FCFLAGS) -c $< -o $@ $(adios_inc)
 
 $(OBJDIR)/update_model.o: $(SRCDIR)/update_model.f90  $(objects)
+	$(MPIFC) $(FCFLAGS) -c $< -o $@ $(adios_inc)
+
+$(OBJDIR)/update_model_par.o: $(SRCDIR)/update_model_par.f90  $(objects)
 	$(MPIFC) $(FCFLAGS) -c $< -o $@ $(adios_inc)
 
 $(OBJDIR)/model_perturb_ref.o: $(SRCDIR)/model_perturb_ref.f90  $(objects)
@@ -180,6 +184,9 @@ $(BINDIR)/xlbfgs: $(OBJDIR)/lbfgs.o $(OBJDIR)/lbfgs_subs.o $(objects)
 	$(MPIFC) $(FCFLAGS) -o $@ $^ $(adios_link) $(adios_inc)
 
 $(BINDIR)/xupdate_model: $(OBJDIR)/update_model.o $(objects)
+	$(MPIFC) $(FCFLAGS) -o $@ $^ $(adios_link) $(adios_inc)
+
+$(BINDIR)/xupdate_model_par: $(OBJDIR)/update_model_par.o $(objects)
 	$(MPIFC) $(FCFLAGS) -o $@ $^ $(adios_link) $(adios_inc)
 
 $(BINDIR)/xmodel_perturb_ref: $(OBJDIR)/model_perturb_ref.o $(objects)
