@@ -1,12 +1,14 @@
-subroutine get_sys_args(grad_file, precond_file, direction_file)
+subroutine get_sys_args(grad_file, precond_file, direction_file,solver_file)
 
   use global_var, only : myrank, exit_mpi
 
-  character(len=512), intent(inout):: grad_file, precond_file, direction_file
+  character(len=512), intent(inout):: grad_file, precond_file, direction_file,solver_file
 
   call getarg(1, grad_file)
   call getarg(2, precond_file)
-  call getarg(3, direction_file)
+  call getarg(3, solver_file)
+  call getarg(4, direction_file)
+  
 
   if(trim(grad_file) == '' .or. trim(precond_file) == '' .or. trim(direction_file) == '') then
         call exit_mpi('Usage: xcg_direction gradient_file precond_file direction_file')
@@ -15,6 +17,7 @@ subroutine get_sys_args(grad_file, precond_file, direction_file)
   if(myrank == 0) then
     write(*, *) "Gradient file   (input): ", trim(grad_file)
     write(*, *) "Precond file    (input): ", trim(precond_file)
+    write(*, *) "Solver file  (input): ", trim(solver_file)
     write(*, *) "Direction file (output): ", trim(direction_file)
   endif
 
@@ -45,26 +48,36 @@ program main
 
   real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable:: gradient
   real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable:: direction
+  real(kind=CUSTOM_REAL), dimension(:,:,:,:),allocatable :: jacobian
   
   !real(kind=CUSTOM_REAL), dimension(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNELS):: direction
 
-  character(len=512) :: grad_file, precond_file, direction_file
+  character(len=512) :: grad_file, precond_file, direction_file,solver_file
+  real(kind=CUSTOM_REAL):: gtp,gtg,gtp_old,gtg_old,gtp_all_tmp,gtg_all_tmp,max_direction,max_direction_all
+  real(kind=CUSTOM_REAL),dimension(:),allocatable::gtp_all,gtg_all
+  real(kind=CUSTOM_REAL)::min_direction,min_direction_all
 
-  integer:: ier
+  integer:: ier,iker
 
   call init_mpi()
 
   call init_kernel_par()
 
   allocate(gradient(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB),direction(NGLLX, NGLLY, NGLLZ, NSPEC,NKERNEL_GLOB))
+  allocate(jacobian(NGLLX, NGLLY, NGLLZ, NSPEC))
+  allocate(gtp_all(NKERNEL_GLOB),gtg_all(NKERNEL_GLOB))
+  
 
-  call get_sys_args(grad_file, precond_file, direction_file)
+  call get_sys_args(grad_file, precond_file, direction_file,solver_file)
 
   call adios_read_init_method(ADIOS_READ_METHOD_BP, MPI_COMM_WORLD, &
                               "verbose=1", ier)
 
-  if (myrank == 0) write(*, *) "Reading Gradient: ", trim(grad_file)
+  if (myrank == 0) write(*, *) "|<----- Reading Gradient ----->| ", trim(grad_file)
   call read_bp_file_real(grad_file,KERNEL_NAMES_GLOB, gradient)
+
+  if (myrank == 0) write(*, *) "|<----- Calculate Jacobian ----->|"
+  call calculate_jacobian_matrix(solver_file, jacobian)
 
   ! if (myrank == 0) write(*, *) "Reading Preconditioner: ", trim(grad_file)
   ! call read_bp_file_real(precond_file, precond_names, precond)
@@ -73,13 +86,59 @@ program main
   !direction = - precond * gradient
   direction = - gradient
 
-  if (myrank == 0) write(*, *) "Write search direction: ", trim(direction_file)
+
+  do iker=1,NKERNEL_GLOB
+     gtg_old = sum(gradient(:,:,:,:,iker) * gradient(:,:,:,:,iker))
+     gtp_old = sum(direction(:,:,:,:,iker) * gradient(:,:,:,:,iker))
+     call mpi_barrier(MPI_COMM_WORLD, ier)
+     call sum_all_all_cr(gtg_old, gtg_all_tmp)
+     call sum_all_all_cr(gtp_old, gtp_all_tmp)
+     gtg_all(iker) = gtg_all_tmp
+     gtp_all(iker) = gtp_all_tmp
+  enddo
+
+  gtp_old = sum(gtp_all)
+  gtg_old = sum(gtg_all)
+
+
+  max_direction = maxval(abs(direction))
+  call max_all_all_cr(max_direction,max_direction_all)
+
+  min_direction = minval(abs(direction))
+  call min_all_all_cr(min_direction,min_direction_all)
+
+
+  
+  call Parallel_ComputeInnerProduct(gradient, gradient, &
+       NKERNEL_GLOB, jacobian, gtg)
+
+  call Parallel_ComputeInnerProduct(gradient, direction, &
+       NKERNEL_GLOB, jacobian, gtp)
+
+  
+  open(99, file = "gtg")  
+  write(99,*) gtg_old
+  close(99)
+
+  open(99, file = "gtp")  
+  write(99,*) gtp_old
+  close(99)
+
+  !#######
+  if (myrank == 0) write(*, *) "|<----- Writing Direction ----->| ", trim(direction_file)
   call write_bp_file(direction, KERNEL_NAMES_GLOB, "KERNEL_GROUPS", direction_file)
 
   call adios_finalize(myrank, ier)
 
   deallocate(gradient,direction)
-  
+  deallocate(jacobian,gtp_all,gtg_all)
+
+  if (myrank==0) then
+  write(*,*) "gtp_old : ",gtp_old," gtg_old :",gtg_old
+  write(*,*) "gtp : ",gtp," gtg :",gtg
+  write(*,*) "min_val_direction : " , min_direction_all," max_val_direction: ", max_direction_all
+endif
+
   call MPI_FINALIZE(ier)
 
 end program

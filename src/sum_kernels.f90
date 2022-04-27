@@ -63,8 +63,8 @@ end module sum_kernels_subs
 program sum_kernels
   use mpi
   use adios_read_mod
-  use global_var, only : CUSTOM_REAL, NGLLX, NGLLY, NGLLZ, NSPEC, myrank
-  use global_var, only : init_mpi, exit_mpi
+  use global_var, only : CUSTOM_REAL, NGLLX, NGLLY, NGLLZ, NSPEC, myrank,init_kernel_par,NPAR_GLOB,NKERNEL_GLOB
+  use global_var, only : init_mpi, exit_mpi,KERNEL_NAMES_GLOB,MODEL_NAMES_GLOB
   use AdiosIO
   use sum_kernels_subs
 
@@ -84,20 +84,28 @@ program sum_kernels
   !                          "bulk_c_kl_crust_mantle",     "eta_kl_crust_mantle",        &
   !                          "hess_kl_crust_mantle"/)
 
-  integer, parameter :: NKERNELS = 7    !bulk_betah, bulk_betav, bulk_c, eta, rho, hess
-  integer, parameter :: hess_idx = 5
-  character(len=500), parameter :: kernel_names(NKERNELS) = &
-    (/character(len=500) :: "bulk_betah_kl_crust_mantle", "bulk_betav_kl_crust_mantle", &
-                            "bulk_c_kl_crust_mantle", "eta_kl_crust_mantle",        &
-                            "hess_kl_crust_mantle", "hess_kappa_kl_crust_mantle", &
-                            "hess_mu_kl_crust_mantle"/)
+  ! integer, parameter :: NKERNELS = 7    !bulk_betah, bulk_betav, bulk_c, eta, rho, hess
+  ! integer, parameter :: hess_idx = 5
+  ! character(len=500), parameter :: kernel_names(NKERNELS) = &
+  !   (/character(len=500) :: "bulk_betah_kl_crust_mantle", "bulk_betav_kl_crust_mantle", &
+  !                           "bulk_c_kl_crust_mantle", "eta_kl_crust_mantle",        &
+  !                           "hess_kl_crust_mantle", "hess_kappa_kl_crust_mantle", &
+  !                           "hess_mu_kl_crust_mantle"/)
 
-  real(kind=CUSTOM_REAL),dimension(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNELS):: total_kernel
-  real(kind=CUSTOM_REAL),dimension(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNELS):: kernels
+  ! real(kind=CUSTOM_REAL),dimension(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNELS):: total_kernel
+  ! real(kind=CUSTOM_REAL),dimension(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNELS):: kernels
+
+
+  real(kind=CUSTOM_REAL),dimension(:,:,:,:,:),allocatable:: total_kernel
+  real(kind=CUSTOM_REAL),dimension(:,:,:,:,:),allocatable:: kernels
 
   call init_mpi()
 
-  if (kernel_names(hess_idx) /= "hess_kl_crust_mantle") call exit_mpi("Incorrect hess_idx")
+  call init_kernel_par()
+
+  allocate(total_kernel(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB),kernels(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB))
+
+!  if (kernel_names(hess_idx) /= "hess_kl_crust_mantle") call exit_mpi("Incorrect hess_idx")
 
   call get_sys_args(eventfile, outputfn)
   call read_event_file(eventfile, nevent, kernel_list, weight_list)
@@ -113,21 +121,22 @@ program sum_kernels
     if (myrank==0) write(*,*) 'Reading in kernel for [', ievent, &
         "/", nevent, "]: ", trim(kernel_file), " | weight: ", weight
 
-    call read_bp_file_real(kernel_file, kernel_names, kernels)
+    call read_bp_file_real(kernel_file, KERNEL_NAMES_GLOB, kernels)
 
     ! only keep the abs value of the hess kernel
     !kernels(:, :, :, :, hess_idx) = abs(kernels(:, :, :, :, hess_idx))
-    kernels(:, :, :, :, hess_idx:(hess_idx+2)) = abs(kernels(:, :, :, :, hess_idx:(hess_idx+2)))
+    !kernels(:, :, :, :, hess_idx:(hess_idx+2)) = abs(kernels(:, :, :, :, hess_idx:(hess_idx+2)))
 
     total_kernel = total_kernel + kernels * weight
   end do
 
-  call write_bp_file(total_kernel, kernel_names, "KERNEL_GROUPS", outputfn)
+  call write_bp_file(total_kernel, KERNEL_NAMES_GLOB, "KERNEL_GROUPS", outputfn)
 
   if (myrank==0) print*, 'Done summing all the kernels'
   if (myrank==0) print*, "output file: ", trim(outputfn)
 
   call adios_finalize(myrank, ier)
+  deallocate(total_kernel,kernels)
   call MPI_FINALIZE(ier)
 
 end program sum_kernels

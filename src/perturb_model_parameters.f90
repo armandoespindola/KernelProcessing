@@ -103,13 +103,14 @@ program main
   idx_par = 4
   models_new = models
   models_new(:,:,:,:,idx_par) = 0.0d0
-  depth=(/200.0,400.0,600.0 /)
+  !depth=(/200.0,400.0,600.0 /)
+  depth=(/150.0,400.0,200.0 /)
   lat=(/30.0,0.0,-30.0 /)
   lon=(/-135.0,-90.0,-45.0,0.0,45.0,90.0,135.0,180.0/)
-  sigmav=(/150.0,150.0,150.0 /)
-  sigmah=(/250.0,350.0,450.0 /)
+  sigmav=(/150.0,250.0,150.0 /)
+  sigmah=(/350.0,750.0,450.0 /)
 
-  do iz=1,3
+  do iz=1,2
      do ilat=1,3
         do ilon=1,8
            !add_gaussian_perturb_elliptic(r, lat, lon, sigmah0, sigmav0, perturb_idx)
@@ -118,7 +119,7 @@ program main
 
           
 
-          if (iz == 3) then
+          if (iz == 2) then
           call add_gaussian_perturb_elliptic(depth(iz), lat(ilat), &
                lon(ilon) + 22.0, sigmah(iz), sigmav(iz),1)
        else
@@ -135,7 +136,7 @@ program main
      enddo
      enddo
 
-     models_new(:,:,:,:,idx_par) = models(:,:,:,:,idx_par) * exp(0.20 * models_new(:,:,:,:,idx_par))
+     models_new(:,:,:,:,idx_par) = models(:,:,:,:,idx_par) * exp(0.55 * models_new(:,:,:,:,idx_par))
     
      
   ! stores new model in files

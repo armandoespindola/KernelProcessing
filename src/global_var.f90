@@ -274,6 +274,7 @@ module global_var
 
     integer :: ier
 
+    
     ! write error message to screen
     write(*,*) error_msg(1:len(error_msg))
     write(*,*) 'Error detected, aborting MPI... proc ',myrank
@@ -298,7 +299,7 @@ module global_var
     NPAR_GLOB=4
     NKERNEL_GLOB=1
 
-    allocate(KERNEL_NAMES_GLOB(NKERNEL_GLOB),MODEL_NAMES_GLOB(NPAR_GLOB),MODEL_PERTURB_NAMES_GLOB(NKERNEL_GLOB),stat=ier)
+    allocate(KERNEL_NAMES_GLOB(NKERNEL_GLOB),MODEL_NAMES_GLOB(NPAR_GLOB),MODEL_PERTURB_NAMES_GLOB(NPAR_GLOB),stat=ier)
     
     
 
@@ -308,9 +309,12 @@ module global_var
     MODEL_NAMES_GLOB(4)="reg1/qmu"
 
 
-    MODEL_PERTURB_NAMES_GLOB(1)="reg1/dqmuqmu"
+    MODEL_PERTURB_NAMES_GLOB(1)="reg1/dvpvp"
+    MODEL_PERTURB_NAMES_GLOB(2)="reg1/dvsvs"
+    MODEL_PERTURB_NAMES_GLOB(3)="reg1/drhorho"
+    MODEL_PERTURB_NAMES_GLOB(4)="reg1/dqmuqmu"
 
-    KERNEL_NAMES_GLOB(1)="kernel_mu"
+    KERNEL_NAMES_GLOB(1)="mu_kl_crust_mantle"
 
     QMU_IDX = 4
     

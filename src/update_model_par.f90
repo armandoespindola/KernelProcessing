@@ -179,7 +179,7 @@ contains
       print*, "System Args: "
       write(*, '(A, ES16.6)'),' step_fac = ', step_fac
       print*,' input model file  :', trim(input_model_file)
-      print*,' input kernel file :', trim(input_solver_file)
+      print*,' input solver file :', trim(input_solver_file)
       print*,' input kernel file :', trim(input_kernel_file)
       print*,' outputdir  :', trim(outputdir)
       print*
@@ -202,6 +202,7 @@ contains
     call read_bp_file_real(input_solver_file, "reg1/y_global", y_glob)
     call read_bp_file_real(input_solver_file, "reg1/z_global", z_glob)
 
+    
     ! calculate jacobian matrix
     call calculate_jacobian_matrix(input_solver_file, jacobian)
 
@@ -302,7 +303,9 @@ contains
       write(*, '(A, F16.8)') 'Step length:                ', step_fac
     endif
 
-    dmodels = step_fac * (kernels / global_vmax_all)
+!    dmodels = step_fac * (kernels / global_vmax_all)
+    dmodels = step_fac * kernels
+    
     if(myrank == 0) print*, "Scaled Model Update: "
     call stats_value_range(dmodels, KERNEL_NAMES_GLOB)
 
@@ -320,16 +323,16 @@ contains
     integer :: i, j, k, ispec
 
 
-    model_dqmu = dmodels(:,:,:,:,QMU_IDX)
+    model_dqmu = dmodels(:,:,:,:,1)
     models_new = models
-    
+
     do ispec = 1, NSPEC
       do k = 1, NGLLZ
         do j = 1, NGLLY
            do i = 1, NGLLX
 
               qmu0 = models(i,j,k,ispec,QMU_IDX)
-              models_new(i,j,k,ispec,QMU_IDX) = qmu0 * (model_dqmu(i,j,k,ispec) + 1.0 )
+              models_new(i,j,k,ispec,QMU_IDX) = 1.0 / ((1.0 / qmu0)  + model_dqmu(i,j,k,ispec))
 
              
            enddo

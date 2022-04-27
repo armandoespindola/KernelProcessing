@@ -258,6 +258,7 @@ module AdiosIO
     ! Don't change the order of varlist, since the order matters when
     ! calling the build_jacobian() function
     character(len=100), parameter :: regionTag = "reg1"
+    character(len=100)::buffer
     integer, parameter :: nvars = 9
     character(len=100), dimension(9) :: varlist = &
       (/character(len=100) :: "xixstore", "xiystore", "xizstore", &
@@ -266,19 +267,32 @@ module AdiosIO
 
     real(kind=CUSTOM_REAL), dimension(:, :, :, :, :), allocatable :: model
     integer, dimension(:, :, :, :), allocatable :: ibool
-    integer :: i
+    integer :: i,ier
 
+   
+    
     do i = 1, nvars
-     varlist(i) = trim(regionTag)//"/"//trim(varlist(i))
+       buffer = trim(regionTag)//"/"//trim(varlist(i))
+       varlist(i) = trim(buffer)
+       !write(*,*) varlist(i)
     enddo
 
-    allocate(model(NGLLX, NGLLY, NGLLZ, NSPEC, nvars))
+   
+    
+    allocate(model(NGLLX, NGLLY, NGLLZ, NSPEC, nvars),stat=ier)
+
+   
+   
+    
     call read_bp_file_real(solver_file, varlist, model)
 
+   
+    
     ! read ibool
     allocate(ibool(NGLLX, NGLLY, NGLLZ, NSPEC))
     call read_bp_file_int(solver_file, "reg1/ibool", ibool)
 
+   
     call build_jacobian( &
            ibool(:,:,:,:), &
            model(:,:,:,:,1), model(:,:,:,:,2), model(:,:,:,:,3), &
