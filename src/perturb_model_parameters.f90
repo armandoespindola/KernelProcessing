@@ -136,7 +136,7 @@ program main
      enddo
      enddo
 
-     models_new(:,:,:,:,idx_par) = models(:,:,:,:,idx_par) * exp(0.55 * models_new(:,:,:,:,idx_par))
+     models_new(:,:,:,:,idx_par) = 1.0/ ( (1.0 / models(:,:,:,:,idx_par)) * (1.0 + 0.55 * models_new(:,:,:,:,idx_par)) )
     
      
   ! stores new model in files

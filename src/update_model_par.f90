@@ -332,7 +332,7 @@ contains
            do i = 1, NGLLX
 
               qmu0 = models(i,j,k,ispec,QMU_IDX)
-              models_new(i,j,k,ispec,QMU_IDX) = 1.0 / ((1.0 / qmu0)  + model_dqmu(i,j,k,ispec))
+              models_new(i,j,k,ispec,QMU_IDX) = 1.0 / ( (1.0 / qmu0)  + model_dqmu(i,j,k,ispec) )
 
              
            enddo
