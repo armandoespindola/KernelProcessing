@@ -59,8 +59,8 @@ program main
   character(len=500) :: input_file,output_dir,input_solver_file,output_file
   integer :: ier
 
-  real(kind=CUSTOM_REAL),dimension(3) :: depth,lat,sigmav,sigmah
-  real(kind=CUSTOM_REAL),dimension(8) :: lon
+  real(kind=CUSTOM_REAL),dimension(1) :: depth,lat,sigmav,sigmah
+  real(kind=CUSTOM_REAL),dimension(6) :: lon
   real(kind=CUSTOM_REAL):: fact
   integer::iz,ilat,ilon,idx_par
 
@@ -104,39 +104,40 @@ program main
   models_new = models
   models_new(:,:,:,:,idx_par) = 0.0d0
   !depth=(/200.0,400.0,600.0 /)
-  depth=(/150.0,400.0,200.0 /)
-  lat=(/30.0,0.0,-30.0 /)
-  lon=(/-135.0,-90.0,-45.0,0.0,45.0,90.0,135.0,180.0/)
-  sigmav=(/150.0,250.0,150.0 /)
-  sigmah=(/350.0,750.0,450.0 /)
+  depth=(/400.0/)
+  lat=(/0.0/)
+  lon=(/-135.0,-45.0,45.0,0.0,135.0,180.0/)
+  sigmav=(/350.0/)
+  sigmah=(/1250.0/)
 
-  do iz=1,2
-     do ilat=1,3
-        do ilon=1,8
+  do iz=1,1
+     do ilat=1,1
+        do ilon=1,6
            !add_gaussian_perturb_elliptic(r, lat, lon, sigmah0, sigmav0, perturb_idx)
           if (myrank==0) write (*,*) "r, lat, lon, sigmah0, sigmav0, perturb_idx"
           if (myrank==0) write (*,*)  depth(iz), lat(ilat),lon(ilon), sigmah(iz), sigmav(iz)
 
           
 
-          if (iz == 2) then
-          call add_gaussian_perturb_elliptic(depth(iz), lat(ilat), &
-               lon(ilon) + 22.0, sigmah(iz), sigmav(iz),1)
-       else
+         !  if (iz == 2) then
+       !    call add_gaussian_perturb_elliptic(depth(iz), lat(ilat), &
+       !         lon(ilon) + 22.0, sigmah(iz), sigmav(iz),1)
+       ! else
 
           call add_gaussian_perturb_elliptic(depth(iz), lat(ilat), &
                 lon(ilon), sigmah(iz), sigmav(iz),1)
           
-          endif                 
+          !endif                 
            
-           fact = (-1.0)**(iz + ilon + ilat)
-           models_new(:,:,:,:,idx_par) = models_new(:,:,:,:,idx_par) +  kernels(:,:,:,:,1) * fact
-           kernels(:,:,:,:,1) = 0.0d0
+          fact = 1.0 !(-1.0)**(iz + ilon + ilat)
+          !kernels=0.0d0
+          models_new(:,:,:,:,idx_par) = models_new(:,:,:,:,idx_par) +  kernels(:,:,:,:,1) * fact
+          kernels= 0.0d0
         enddo
      enddo
      enddo
 
-     models_new(:,:,:,:,idx_par) = 1.0/ ( (1.0 / models(:,:,:,:,idx_par)) * (1.0 + 0.55 * models_new(:,:,:,:,idx_par)) )
+     models_new(:,:,:,:,idx_par) = 1.0/ ( (1.0 / models(:,:,:,:,idx_par)) * (1.0 + 0.65 * models_new(:,:,:,:,idx_par)) )
     
      
   ! stores new model in files

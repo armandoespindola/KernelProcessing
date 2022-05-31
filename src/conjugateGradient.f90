@@ -6,7 +6,7 @@ module ConjugateGradient
   use mpi
   use global_var, only : CUSTOM_REAL, CUSTOM_MPI_TYPE, myrank, &
     Parallel_ComputeL2normSquare, Parallel_ComputeInnerProduct, &
-    sum_all_all_cr
+    sum_all_all_cr,NKERNEL_GLOB
 
   implicit none
 
@@ -24,15 +24,13 @@ module ConjugateGradient
     real(kind=CUSTOM_REAL),dimension(:), allocatable:: beta_upper_all, beta_down_all
     real(kind=CUSTOM_REAL)::beta_upper, beta_down, beta_upper_all_tmp, beta_down_all_tmp
     integer :: ier, iker
-    integer :: nkernels
 
-    nkernels = size(gradient_0, 5)
-    if (myrank == 0) write(*, *) "Number of kerenels: ", nkernels
+    if (myrank == 0) write(*, *) "Number of kerenels: ", NKERNEL_GLOB
 
-    allocate(beta_upper_all(nkernels))
-    allocate(beta_down_all(nkernels))
+    allocate(beta_upper_all(NKERNEL_GLOB))
+    allocate(beta_down_all(NKERNEL_GLOB))
 
-    do iker = 1, nkernels
+    do iker = 1, NKERNEL_GLOB
       beta_upper = sum( gradient_1(:, :, :, :, iker) * &
         (gradient_1(:, :, :, :, iker) - gradient_0(:, :, :, :, iker)))
 
@@ -59,14 +57,12 @@ module ConjugateGradient
 
     real(kind=CUSTOM_REAL) :: beta_up, beta_down
     real(kind=CUSTOM_REAL) :: orth, orth_up, orth_down
-    integer :: nkernels
 
-    nkernels = size(gradient_0, 5)
-    if (myrank == 0) write(*, *) "Number of kerenels: ", nkernels
+    if (myrank == 0) write(*, *) "Number of kerenels: ", NKERNEL_GLOB
 
     call Parallel_ComputeInnerProduct(gradient_1, gradient_1 - gradient_0, &
-                                      nkernels, jacobian, beta_up)
-    call Parallel_ComputeL2normSquare(gradient_0, nkernels, jacobian, beta_down)
+                                      NKERNEL_GLOB, jacobian, beta_up)
+    call Parallel_ComputeL2normSquare(gradient_0, NKERNEL_GLOB, jacobian, beta_down)
 
     beta = beta_up / beta_down
     ! Restart condition 1: beta must be >= 0
@@ -78,8 +74,8 @@ module ConjugateGradient
 
     ! Restart condition 2: g0 and g1 must be orthogonal enough
     ! Eq(5.52) on Page 125 on Numerical Optimization
-    call Parallel_ComputeInnerProduct(gradient_1, gradient_0, nkernels, jacobian, orth_up)
-    call Parallel_ComputeL2normSquare(gradient_1, nkernels, jacobian, orth_down)
+    call Parallel_ComputeInnerProduct(gradient_1, gradient_0, NKERNEL_GLOB, jacobian, orth_up)
+    call Parallel_ComputeL2normSquare(gradient_1, NKERNEL_GLOB, jacobian, orth_down)
     orth = abs(orth_up / orth_down)
     if(myrank == 0) write(*, *) "Orthogonal coef: ", orth
     if (orth > 0.1) then
@@ -171,6 +167,10 @@ program main
   character(len=500) :: direction_0_file
   character(len=500) :: direction_1_file ! outputfn
 
+  real(kind=CUSTOM_REAL):: gtp,gtg,gtp_old,gtg_old,gtp_all_tmp,gtg_all_tmp
+  real(kind=CUSTOM_REAL):: max_direction,max_direction_all,min_direction,min_direction_all
+  real(kind=CUSTOM_REAL),dimension(:),allocatable::gtp_all,gtg_all
+
   integer:: ier
 
   call init_mpi()
@@ -181,6 +181,8 @@ program main
        direction_1(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB), &
        direction_0(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB), &
        jacobian(NGLLX, NGLLY, NGLLZ, NSPEC))
+
+  allocate(gtp_all(NKERNEL_GLOB),gtg_all(NKERNEL_GLOB))
 
   call get_sys_args(grad_0_file, grad_1_file, &
                     direction_0_file, direction_1_file, solver_file)
@@ -204,9 +206,51 @@ program main
 
   if (myrank == 0) write(*, *) "|<----- Done Writing ----->|"
 
+
+   do iker=1,NKERNEL_GLOB
+     gtg_old = sum(gradient_1(:,:,:,:,iker) * gradient_1(:,:,:,:,iker))
+     gtp_old = sum(direction_1(:,:,:,:,iker) * gradient_1(:,:,:,:,iker))
+     call mpi_barrier(MPI_COMM_WORLD, ier)
+     call sum_all_all_cr(gtg_old, gtg_all_tmp)
+     call sum_all_all_cr(gtp_old, gtp_all_tmp)
+     gtg_all(iker) = gtg_all_tmp
+     gtp_all(iker) = gtp_all_tmp
+  enddo
+
+  gtp_old = sum(gtp_all)
+  gtg_old = sum(gtg_all)
+  
+  call Parallel_ComputeInnerProduct(gradient_1, gradient_1, &
+       NKERNEL_GLOB, jacobian, gtg)
+
+  call Parallel_ComputeInnerProduct(gradient_1, direction_1, &
+       NKERNEL_GLOB, jacobian, gtp)
+
+  max_direction = maxval(abs(direction_1))
+  call max_all_all_cr(max_direction,max_direction_all)
+
+  min_direction = minval(abs(direction_1))
+  call min_all_all_cr(min_direction,min_direction_all)
+
+  
+  open(99, file = "gtg")  
+  write(99,*) gtg_old
+  close(99)
+
+  open(99, file = "gtp")  
+  write(99,*) gtp_old
+  close(99)
+
+  if (myrank==0) then
+     write(*,*) "gtp_old : ",gtp_old," gtg_old :",gtg_old
+     write(*,*) "gtp : ",gtp," gtg :",gtg
+     write(*,*) "min_val_direction : " , min_direction_all," max_val_direction: ", max_direction_all
+  endif
+
   call adios_finalize(myrank, ier)
 
   deallocate(gradient_0,gradient_1,direction_0,direction_1,jacobian)
+  deallocate(gtp_all,gtg_all)
   
   call MPI_FINALIZE(ier)
 

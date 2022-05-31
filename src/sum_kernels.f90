@@ -1,9 +1,29 @@
 module sum_kernels_subs
 
-  use global_var, only : CUSTOM_REAL, myrank, exit_mpi
+  use global_var, only : CUSTOM_REAL, myrank, exit_mpi,init_kernel_par
+  use global_var, only : NGLLX, NGLLY, NGLLZ, NSPEC,NPAR_GLOB,ATTENUATION_FLAG
   implicit none
+   ! model updates
+  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:), allocatable :: models
 
-  contains
+contains
+
+
+  subroutine init_sum_kernel_model()
+    integer::ier
+    ! Allocates memory for variables in model_par
+    allocate(models(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_GLOB),stat=ier)
+
+    models=0.0d0
+  
+    if (ier /= 0) stop " Error Allocating parameter for Sum Kernel : Init Model Variables "
+
+  end subroutine init_sum_kernel_model
+
+  subroutine clean_sum_kernel_model()
+    deallocate(models)
+    
+  end subroutine clean_sum_kernel_model
 
   subroutine read_event_file(eventfile, nevent, kernel_list, weight_list)
     character(len=*), intent(in) :: eventfile
@@ -41,11 +61,19 @@ module sum_kernels_subs
     close(fh)
   end subroutine read_event_file
 
-  subroutine get_sys_args(eventfile, outputfn)
-    character(len=*), intent(inout) :: eventfile, outputfn
+  subroutine get_sys_args(eventfile, outputfn,inputmodel)
+    character(len=*), intent(inout) :: eventfile, outputfn,inputmodel
 
     call getarg(1, eventfile)
     call getarg(2, outputfn)
+
+    if (ATTENUATION_FLAG) then
+       call getarg(3,inputmodel)
+       if(trim(inputmodel) == '' .or. trim(outputfn) == '' .or. trim(eventfile) == '' ) then
+      call exit_mpi("Usage: xsum_kernels eventfile outputfn inputmodel")
+   endif
+endif
+
 
     if(trim(eventfile) == '' .or. trim(outputfn) == '') then
       call exit_mpi("Usage: xsum_kernels eventfile outputfn")
@@ -54,6 +82,7 @@ module sum_kernels_subs
     if(myrank == 0) then
       write(*, *) "Event file(in): ", trim(eventfile)
       write(*, *) "Output file(out, kernel sums): ", trim(outputfn)
+      if (ATTENUATION_FLAG) write(*, *) "Input model(in): ", trim(inputmodel)
     endif
   end subroutine
 
@@ -65,13 +94,14 @@ program sum_kernels
   use adios_read_mod
   use global_var, only : CUSTOM_REAL, NGLLX, NGLLY, NGLLZ, NSPEC, myrank,init_kernel_par,NPAR_GLOB,NKERNEL_GLOB
   use global_var, only : init_mpi, exit_mpi,KERNEL_NAMES_GLOB,MODEL_NAMES_GLOB
+  use global_var, only : ATTENUATION_FLAG,QMU_IDX,KQMU_IDX
   use AdiosIO
   use sum_kernels_subs
 
   implicit none
 
   integer:: nevent, ievent, ier
-  character(len=500) :: eventfile, outputfn, kernel_file
+  character(len=500) :: eventfile, outputfn, kernel_file,input_model_file
 
   character(len=500), dimension(:), allocatable :: kernel_list
   real(kind=CUSTOM_REAL):: weight
@@ -107,11 +137,12 @@ program sum_kernels
 
 !  if (kernel_names(hess_idx) /= "hess_kl_crust_mantle") call exit_mpi("Incorrect hess_idx")
 
-  call get_sys_args(eventfile, outputfn)
+  call get_sys_args(eventfile, outputfn,input_model_file)
   call read_event_file(eventfile, nevent, kernel_list, weight_list)
 
   call adios_read_init_method(ADIOS_READ_METHOD_BP, MPI_COMM_WORLD, &
-                              "verbose=1", ier)
+       "verbose=1", ier)
+
 
   total_kernel = 0.
   do ievent=1, nevent
@@ -123,14 +154,39 @@ program sum_kernels
 
     call read_bp_file_real(kernel_file, KERNEL_NAMES_GLOB, kernels)
 
+    
+
     ! only keep the abs value of the hess kernel
     !kernels(:, :, :, :, hess_idx) = abs(kernels(:, :, :, :, hess_idx))
     !kernels(:, :, :, :, hess_idx:(hess_idx+2)) = abs(kernels(:, :, :, :, hess_idx:(hess_idx+2)))
 
     total_kernel = total_kernel + kernels * weight
-  end do
+ end do
+
 
   call write_bp_file(total_kernel, KERNEL_NAMES_GLOB, "KERNEL_GROUPS", outputfn)
+
+  if (ATTENUATION_FLAG) then
+
+     call init_sum_kernel_model()
+     ! reads in current transverse isotropic model files: vpv.. & vsv.. & eta & rho
+     if(myrank == 0) print*, "|<---- Reading Model File ---->|", trim(input_model_file)
+     call read_bp_file_real(input_model_file, MODEL_NAMES_GLOB, models)
+
+     total_kernel = 0.0d0
+     
+     if (myrank == 0) write(*, *) "|<----- Reading Sum Kernel ----->| ", trim(outputfn)
+     call read_bp_file_real(outputfn,KERNEL_NAMES_GLOB, total_kernel)
+
+     total_kernel(:,:,:,:,KQMU_IDX) = total_kernel(:,:,:,:,KQMU_IDX) * 1.0 / models(:,:,:,:,QMU_IDX)
+
+     call write_bp_file(total_kernel, KERNEL_NAMES_GLOB, "KERNEL_GROUPS", outputfn)
+
+     call clean_sum_kernel_model()
+     
+  endif
+
+  
 
   if (myrank==0) print*, 'Done summing all the kernels'
   if (myrank==0) print*, "output file: ", trim(outputfn)

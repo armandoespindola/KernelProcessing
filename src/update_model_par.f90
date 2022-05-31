@@ -122,8 +122,8 @@ contains
     npar_m = NPAR_GLOB
     nkernel = NKERNEL_GLOB
     ! Allocates memory for variables in model_par
-    allocate(models(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_M), &
-         models_new(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_M), &
+    allocate(models(NGLLX,NGLLY,NGLLZ,NSPEC,npar_m), &
+         models_new(NGLLX,NGLLY,NGLLZ,NSPEC,npar_m), &
          kernels(NGLLX,NGLLY,NGLLZ,NSPEC,nkernel), &
          dmodels(NGLLX,NGLLY,NGLLZ,NSPEC,nkernel),stat=ier)
 
@@ -319,10 +319,12 @@ contains
     
     ! model update:
     real(kind=CUSTOM_REAL), dimension(NGLLX,NGLLY,NGLLZ,NSPEC) :: model_dqmu
-    real(kind=CUSTOM_REAL) :: qmu0
+    real(kind=CUSTOM_REAL) :: qmu0,qmu_min,qmu_max
     integer :: i, j, k, ispec
 
 
+    qmu_min = 60.0
+    qmu_max = 9000.0
     model_dqmu = dmodels(:,:,:,:,1)
     models_new = models
 
@@ -332,7 +334,14 @@ contains
            do i = 1, NGLLX
 
               qmu0 = models(i,j,k,ispec,QMU_IDX)
-              models_new(i,j,k,ispec,QMU_IDX) = 1.0 / ( (1.0 / qmu0)  + model_dqmu(i,j,k,ispec) )
+              models_new(i,j,k,ispec,QMU_IDX) = 1.0 / ( (1.0 / qmu0) * exp(model_dqmu(i,j,k,ispec)) )
+
+              ! Limits for attenuation model
+              if (models_new(i,j,k,ispec,QMU_IDX) > qmu_max) then
+                 models_new(i,j,k,ispec,QMU_IDX) = qmu_max
+              else if(models_new(i,j,k,ispec,QMU_IDX) < qmu_min) then
+                 models_new(i,j,k,ispec,QMU_IDX) = qmu_min
+              endif
 
              
            enddo

@@ -38,7 +38,8 @@ module global_var
 
   !parameters for kernel processing
   integer :: NPAR_GLOB,NKERNEL_GLOB
-  integer :: QMU_IDX
+  integer :: QMU_IDX,KQMU_IDX
+  logical :: ATTENUATION_FLAG
   character(len=500), dimension(:),allocatable :: KERNEL_NAMES_GLOB,MODEL_NAMES_GLOB,MODEL_PERTURB_NAMES_GLOB
 
 
@@ -296,27 +297,34 @@ module global_var
     !character(len=500) :: line
 
 
-    NPAR_GLOB=4
+    NPAR_GLOB=7
     NKERNEL_GLOB=1
 
     allocate(KERNEL_NAMES_GLOB(NKERNEL_GLOB),MODEL_NAMES_GLOB(NPAR_GLOB),MODEL_PERTURB_NAMES_GLOB(NPAR_GLOB),stat=ier)
     
     
+    MODEL_NAMES_GLOB(1)="reg1/rho"
+    MODEL_NAMES_GLOB(2)="reg1/vpv"
+    MODEL_NAMES_GLOB(3)="reg1/vph"
+    MODEL_NAMES_GLOB(4)="reg1/vsv"
+    MODEL_NAMES_GLOB(5)="reg1/vsh"
+    MODEL_NAMES_GLOB(6)="reg1/eta"
+    MODEL_NAMES_GLOB(7)="reg1/qmu"
 
-    MODEL_NAMES_GLOB(1)="reg1/vp"
-    MODEL_NAMES_GLOB(2)="reg1/vs"
-    MODEL_NAMES_GLOB(3)="reg1/rho"
-    MODEL_NAMES_GLOB(4)="reg1/qmu"
 
-
-    MODEL_PERTURB_NAMES_GLOB(1)="reg1/dvpvp"
-    MODEL_PERTURB_NAMES_GLOB(2)="reg1/dvsvs"
-    MODEL_PERTURB_NAMES_GLOB(3)="reg1/drhorho"
-    MODEL_PERTURB_NAMES_GLOB(4)="reg1/dqmuqmu"
+    MODEL_PERTURB_NAMES_GLOB(1)="reg1/drhorho"
+    MODEL_PERTURB_NAMES_GLOB(2)="reg1/dvpvvpv"
+    MODEL_PERTURB_NAMES_GLOB(3)="reg1/dvphvph"
+    MODEL_PERTURB_NAMES_GLOB(4)="reg1/dvsvvsv"
+    MODEL_PERTURB_NAMES_GLOB(5)="reg1/dvshvsh"
+    MODEL_PERTURB_NAMES_GLOB(6)="reg1/detaeta"
+    MODEL_PERTURB_NAMES_GLOB(7)="reg1/dqmuqmu"
 
     KERNEL_NAMES_GLOB(1)="mu_kl_crust_mantle"
 
-    QMU_IDX = 4
+    QMU_IDX = 7
+    KQMU_IDX = 1
+    ATTENUATION_FLAG=.true.
     
 
     ! OPENING FILE TO READ PARAMETERS
