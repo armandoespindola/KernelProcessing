@@ -84,7 +84,7 @@ program main
 
   ! steep descent method with preconditioner applied
   !direction = - precond * gradient
-  direction = 1.0 * gradient
+  direction = -1.0 * gradient
 
 
   do iker=1,NKERNEL_GLOB

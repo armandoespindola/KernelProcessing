@@ -360,7 +360,7 @@ contains
   subroutine store_perturbations(outputfile)
     character(len=*),intent(in) :: outputfile
 
-    real(kind=CUSTOM_REAL), dimension(NGLLX,NGLLY,NGLLZ,NSPEC,6) :: models_perturb
+    real(kind=CUSTOM_REAL), dimension(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_GLOB) :: models_perturb
 
     where(models /= 0.0)
       models_perturb = log(models_new / models)
