@@ -2,11 +2,17 @@ SRCDIR=src
 OBJDIR=obj
 BINDIR=bin
 
+# GNU COMPILERS
 FC=gfortran
 MPIFC=mpif90
-#MPIFC=ftn
-
 FCFLAGS=-O3 -Wall -J $(OBJDIR) -I $(OBJDIR)
+
+
+# INTEL COMPILERS
+FC=ifort
+MPIFC=mpif90
+FCFLAGS=-O3 -W1 -module $(OBJDIR) -I $(OBJDIR)
+
 
 adios_link=$(shell adios_config -lf)
 adios_inc=$(shell adios_config  -cf)
@@ -27,10 +33,8 @@ all: $(BINDIR)/xsteepDescent \
 	$(BINDIR)/xmerge_kernels \
 	$(BINDIR)/xmerge_azi_kernels \
 	$(BINDIR)/xupdate_model \
-	$(BINDIR)/xmodel_perturb_ref \
 	$(BINDIR)/xblend_model \
 	$(BINDIR)/xgauss_single \
-	$(BINDIR)/xgauss_multiple \
 	$(BINDIR)/xbp2binary \
 	$(BINDIR)/xascii2bp \
 	$(BINDIR)/xabs_kernel \

@@ -2,7 +2,7 @@ module lbfgs_subs
 
   use mpi
   use global_var, only : CUSTOM_REAL, myrank, exit_mpi, NGLLX, NGLLY, NGLLZ, &
-                     NSPEC
+                     NSPEC,NPAR_GLOB,KERNEL_NAMES_GLOB,NSPEC,NKERNEL_GLOB
   use global_var, only : Parallel_ComputeInnerProduct, Parallel_ComputeL2normSquare
   use AdiosIO, only : read_bp_file_real
   implicit none
@@ -164,13 +164,13 @@ module lbfgs_subs
     enddo
 
     ! Precondition 1
-    !call Parallel_ComputeL2normSquare(yks(:, :, :, :, :, niter), nkernels, &
-    !                                  jacobian, norm_y)
-    !rhok = 1.0 / (pk_store(niter) * norm_y)
-    !direction = rhok * direction
+    call Parallel_ComputeL2normSquare(yks(:, :, :, :, :, niter), nkernels, &
+                                     jacobian, norm_y)
+    rhok = 1.0 / (pk_store(niter) * norm_y)
+    direction = rhok * direction
 
     ! Precondition 2
-    direction = precond * direction
+    !direction = precond * direction
 
     ! second round
     do i=1, niter, 1
