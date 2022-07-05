@@ -2,8 +2,9 @@ module lbfgs_subs
 
   use mpi
   use global_var, only : CUSTOM_REAL, myrank, exit_mpi, NGLLX, NGLLY, NGLLZ, &
-                     NSPEC,NPAR_GLOB,KERNEL_NAMES_GLOB,NSPEC,NKERNEL_GLOB
-  use global_var, only : Parallel_ComputeInnerProduct, Parallel_ComputeL2normSquare
+                     NSPEC,NPAR_GLOB,KERNEL_NAMES_GLOB,NSPEC,NKERNEL_GLOB,QMU_IDX,MODEL_PERTURB_NAMES_GLOB
+  use global_var, only : Parallel_ComputeInnerProduct, Parallel_ComputeL2normSquare,sum_all_all_cr
+  use global_var, only : min_all_all_cr,max_all_all_cr
   use AdiosIO, only : read_bp_file_real
   implicit none
 
@@ -91,6 +92,11 @@ module lbfgs_subs
     real(kind=CUSTOM_REAL), dimension(:, :, :, :, :, :), allocatable :: stored_gradients
 
     integer :: i
+    
+    character(len=500), dimension(NKERNEL_GLOB) :: names_dmodel
+
+    names_dmodel=MODEL_PERTURB_NAMES_GLOB(QMU_IDX)
+
 
     if(myrank == 0) print*, '|<============= Reading Previous BP files =============>|'
     allocate(stored_gradients(NGLLX, NGLLY, NGLLZ, NSPEC, nkernels, niter+1))
@@ -99,7 +105,7 @@ module lbfgs_subs
     do i=1, niter+1
       if(myrank == 0) write(*, '(A, I2, A, A)') &
         "Reading [iter=", i, "] Gradient: ", trim(gradient_files(i))
-      call read_bp_file_real(gradient_files(i), kernel_names, &
+      call read_bp_file_real(gradient_files(i),KERNEL_NAMES_GLOB, &
                              stored_gradients(:, :, :, :, :, i))
     enddo
 
@@ -116,7 +122,7 @@ module lbfgs_subs
     do i=1, niter
       if(myrank == 0) write(*, '(A, I2, A, A)') &
         "Reading [iter=", i, "] dkernel: ", trim(model_change_files(i))
-      call read_bp_file_real(model_change_files(i), kernel_names, &
+      call read_bp_file_real(model_change_files(i), names_dmodel, &
                              sks(:, :, :, :, :, i))
     enddo
 
@@ -136,7 +142,7 @@ module lbfgs_subs
 
     integer :: i
     real(kind=CUSTOM_REAL) :: tmp, beta
-    !real(kind=CUSTOM_REAL) :: norm_y
+    real(kind=CUSTOM_REAL) :: norm_y,rhok
     real(kind=CUSTOM_REAL), dimension(:), allocatable :: pk_store, ak_store
 
     if(myrank == 0) print*, '|<============= Calculating LBFGS Direction =============>|'
@@ -187,5 +193,75 @@ module lbfgs_subs
     direction = -1.0 * direction
 
   end subroutine calculate_LBFGS_direction
+
+
+  subroutine check_status(grad,dir,jacobian,nkernels)
+    real(kind=CUSTOM_REAL), dimension(:, :, :, :, :), intent(in) :: grad
+    integer, intent(in) :: nkernels
+    real(kind=CUSTOM_REAL), dimension(:, :, :, :), intent(in) :: jacobian
+
+    real(kind=CUSTOM_REAL), dimension(:, :, :, :, :), intent(inout) :: dir
+    real(kind=CUSTOM_REAL) :: gg,dd,gd,angle,flag,flag_all
+    real(kind=CUSTOM_REAL) :: max_direction,max_direction_all,min_direction,min_direction_all
+    integer:: ier
+
+    call Parallel_ComputeInnerProduct(grad, &
+                                        grad, &
+                                        nkernels, jacobian, gg)
+
+    call Parallel_ComputeInnerProduct(dir, &
+                                        dir, &
+                                        nkernels, jacobian, dd)
+
+    call Parallel_ComputeInnerProduct(grad, &
+                                        dir, &
+                                        nkernels, jacobian, gd)
+
+    call mpi_barrier(MPI_COMM_WORLD, ier)
+    
+    if (myrank == 0) then 
+    open(99, file = "gtg")  
+    write(99,*) gg
+    close(99)
+
+    open(99, file = "gtp")  
+    write(99,*) gd
+    close(99)
+ end if
+
+    angle = acos(gd / (gg * dd)**0.5) * 180.0 / 3.14156d0
+
+    if (angle .gt. 90.0d0) then
+       flag=1.0
+    end if
+
+    call sum_all_all_cr(flag,flag_all)
+    
+
+
+    max_direction = maxval(dir)
+    call max_all_all_cr(max_direction,max_direction_all)
+
+    min_direction = minval(dir)
+    call min_all_all_cr(min_direction,min_direction_all)
+
+    if(myrank == 0) print*, '|<============= Check Status LBFGS =============>|'
+    
+    if (myrank == 0) write(*,*) "Angle search direction from current: ", angle
+    
+    if (flag_all .gt. 0) then 
+       if(myrank == 0) print*, '|<============= Restarting LBFGS =============>|'
+       dir = -grad
+    end if
+
+
+    if(myrank == 0) then 
+       write(*,*) "gtp_old : ",gd," gtg_old :",gg
+       write(*,*) "min_val_direction : " , min_direction_all," max_val_direction: ", max_direction_all
+    end if
+
+   
+
+  end subroutine check_status
 
 end module lbfgs_subs

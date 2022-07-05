@@ -232,7 +232,8 @@ program main
   min_direction = minval(abs(direction_1))
   call min_all_all_cr(min_direction,min_direction_all)
 
-  
+
+if (myrank==0) then   
   open(99, file = "gtg")  
   write(99,*) gtg_old
   close(99)
@@ -240,6 +241,7 @@ program main
   open(99, file = "gtp")  
   write(99,*) gtp_old
   close(99)
+end if
 
   if (myrank==0) then
      write(*,*) "gtp_old : ",gtp_old," gtg_old :",gtg_old

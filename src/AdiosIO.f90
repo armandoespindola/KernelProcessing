@@ -283,14 +283,16 @@ module AdiosIO
 
    
    
-    
+    if (myrank == 0) write(*,*) "Reading solver file " ,trim(solver_file)
     call read_bp_file_real(solver_file, varlist, model)
-
+    if (myrank == 0) write(*,*) "Reading done",ier
    
     
     ! read ibool
-    allocate(ibool(NGLLX, NGLLY, NGLLZ, NSPEC))
+    if (myrank == 0) write(*,*) "Reading solver file " ,trim(solver_file)
+    allocate(ibool(NGLLX, NGLLY, NGLLZ, NSPEC),stat=ier)
     call read_bp_file_int(solver_file, "reg1/ibool", ibool)
+    if (myrank == 0) write(*,*) "Reading done",ier
 
    
     call build_jacobian( &

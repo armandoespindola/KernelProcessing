@@ -65,9 +65,13 @@ program main
 
   if(myrank == 0) print*, "|<---- Calculate Jacobian ---->|"
   call calculate_jacobian_matrix(solver_file, jacobian)
+  !jacobian = 1.0d0
 
   if(myrank == 0) print*, "|<---- L-BFGS Direction ---->|"
   call calculate_LBFGS_direction(niter, NKERNEL_GLOB, jacobian, gradient, precond, yks, sks, direction)
+
+  if(myrank == 0) print*, "|<---- L-BFGS Direction (Check Status) ---->|"
+  call check_status(gradient,direction,jacobian,NKERNEL_GLOB)
 
   call write_bp_file(direction, KERNEL_NAMES_GLOB, "KERNELS_GROUP", outputfn)
   if(myrank == 0) print*, "LBFGS direction saved: ", trim(outputfn)
