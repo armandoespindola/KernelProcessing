@@ -93,9 +93,9 @@ module lbfgs_subs
 
     integer :: i
     
-    character(len=500), dimension(NKERNEL_GLOB) :: names_dmodel
+    !character(len=500), dimension(NKERNEL_GLOB) :: names_dmodel
 
-    names_dmodel=MODEL_PERTURB_NAMES_GLOB(QMU_IDX)
+    !names_dmodel=MODEL_PERTURB_NAMES_GLOB(QMU_IDX)
 
 
     if(myrank == 0) print*, '|<============= Reading Previous BP files =============>|'
@@ -122,7 +122,7 @@ module lbfgs_subs
     do i=1, niter
       if(myrank == 0) write(*, '(A, I2, A, A)') &
         "Reading [iter=", i, "] dkernel: ", trim(model_change_files(i))
-      call read_bp_file_real(model_change_files(i), names_dmodel, &
+      call read_bp_file_real(model_change_files(i), KERNEL_NAMES_GLOB, &
                              sks(:, :, :, :, :, i))
     enddo
 
@@ -227,9 +227,9 @@ module lbfgs_subs
     open(99, file = "gtp")  
     write(99,*) gd
     close(99)
- end if
+    end if
 
-    angle = acos(gd / (gg * dd)**0.5) * 180.0 / 3.14156d0
+    angle = acos(-1.0 * gd / (gg * dd)**0.5) * 180.0 / 3.14156d0
 
     if (angle .gt. 90.0d0) then
        flag=1.0
@@ -251,8 +251,33 @@ module lbfgs_subs
     
     if (flag_all .gt. 0) then 
        if(myrank == 0) print*, '|<============= Restarting LBFGS =============>|'
-       dir = -grad
+       dir = -1.0 * grad
+       
+       call Parallel_ComputeInnerProduct(grad, &
+                                        grad, &
+                                        nkernels, jacobian, gg)
+
+       call Parallel_ComputeInnerProduct(dir, &
+            dir, &
+            nkernels, jacobian, dd)
+
+       call Parallel_ComputeInnerProduct(grad, &
+            dir, &
+            nkernels, jacobian, gd)
+
+       call mpi_barrier(MPI_COMM_WORLD, ier)
+    
+       if (myrank == 0) then 
+          open(99, file = "gtg")  
+          write(99,*) gg
+          close(99)
+
+          open(99, file = "gtp")  
+          write(99,*) gd
+          close(99)
+       end if
     end if
+
 
 
     if(myrank == 0) then 

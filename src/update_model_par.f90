@@ -315,7 +315,7 @@ contains
   end subroutine get_model_change
 
   subroutine update_model_qmu()
-    use global_var , only : FOUR_THIRDS, IFLAG_80_MOHO, IFLAG_220_80, IFLAG_670_220,QMU_IDX
+    use global_var , only : FOUR_THIRDS, IFLAG_80_MOHO, IFLAG_220_80, IFLAG_670_220,QMU_IDX,KQMU_IDX
     
     ! model update:
     real(kind=CUSTOM_REAL), dimension(NGLLX,NGLLY,NGLLZ,NSPEC) :: model_dqmu
@@ -325,7 +325,7 @@ contains
 
     qmu_min = 60.0
     qmu_max = 9000.0
-    model_dqmu = dmodels(:,:,:,:,1)
+    model_dqmu = dmodels(:,:,:,:,KQMU_IDX)
     models_new = models
 
     do ispec = 1, NSPEC
