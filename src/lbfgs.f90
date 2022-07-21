@@ -15,7 +15,7 @@ program main
 
   ! Number of previous iteration used in L-BFGS
   integer :: niter
-  character(len=512) :: input_path_file, solver_file, outputfn
+  character(len=512) :: input_path_file, solver_file, outputfn,kernel_parfile
   character(len=512), dimension(:), allocatable :: gradient_files, model_change_files
 
   ! jacobian related to the geometry of mesh
@@ -44,15 +44,17 @@ program main
   integer :: ier
 
   call init_mpi()
-  call init_kernel_par()
+
+  if(myrank == 0) print*, "|<---- Get System Args ---->|"
+  call get_sys_args(kernel_parfile,input_path_file, solver_file, outputfn)
+
+  call init_kernel_par(kernel_parfile)
 
   allocate(precond(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNEL_GLOB),gradient(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNEL_GLOB), &
        direction(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNEL_GLOB))
 
   precond=1.0
 
-  if(myrank == 0) print*, "|<---- Get System Args ---->|"
-  call get_sys_args(input_path_file, solver_file, outputfn)
 
   if(myrank == 0) print*, "|<---- Parse Input Path File ---->|"
   call parse_input_path(input_path_file, niter, gradient_files, model_change_files)

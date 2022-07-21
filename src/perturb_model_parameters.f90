@@ -24,14 +24,17 @@ module perturb_model_parameters
 contains
 
 
-  subroutine get_args(input_file,input_solver_file, output_dir)
+  subroutine get_args(kernel_parfile,input_file,input_solver_file, output_dir)
     character(len=*), intent(inout) :: input_file, input_solver_file,output_dir
+    character(len=*), intent(inout) :: kernel_parfile
 
-    call getarg(1, input_file)
-    call getarg(2,input_solver_file)
-    call getarg(3, output_dir)
+    call getarg(1, kernel_parfile)
+    call getarg(2, input_file)
+    call getarg(3,input_solver_file)
+    call getarg(4, output_dir)
 
-    if(input_solver_file == '' .or. input_file == '' .or. output_dir == '') then
+    if(trim(input_solver_file) == '' .or. trim(input_file) == ''  &
+         .or. trim(output_dir) == '' .or. trim(kernel_parfile) == '') then
       call exit_mpi("Usage: xperturb_model input_file input_solverfile output_dir")
     endif
 
@@ -57,6 +60,7 @@ program main
   implicit none
 
   character(len=500) :: input_file,output_dir,input_solver_file,output_file
+  character(len=500) :: kernel_parfile
   integer :: ier
 
   real(kind=CUSTOM_REAL),dimension(1) :: depth,lat,sigmav,sigmah
@@ -68,14 +72,12 @@ program main
   call init_mpi()
 
 
-  call init_kernel_par()
+  call get_args(kernel_parfile,input_file,input_solver_file, output_dir)
+  call init_kernel_par(kernel_parfile)
 
   allocate(models(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_GLOB),models_new(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_GLOB))
   
   call init_vars()
-
-
-  call get_args(input_file,input_solver_file, output_dir)
   
   call adios_read_init_method (ADIOS_READ_METHOD_BP, MPI_COMM_WORLD, &
                               "verbose=1", ier)

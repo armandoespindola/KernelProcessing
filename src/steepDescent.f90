@@ -1,16 +1,18 @@
-subroutine get_sys_args(grad_file, precond_file, direction_file,solver_file)
+subroutine get_sys_args(kernel_parfile,grad_file, precond_file, direction_file,solver_file)
 
   use global_var, only : myrank, exit_mpi
 
-  character(len=512), intent(inout):: grad_file, precond_file, direction_file,solver_file
+  character(len=512), intent(inout):: grad_file, precond_file, direction_file,solver_file,kernel_parfile
 
-  call getarg(1, grad_file)
-  call getarg(2, precond_file)
-  call getarg(3, solver_file)
-  call getarg(4, direction_file)
+  call getarg(1, kernel_parfile)
+  call getarg(2, grad_file)
+  call getarg(3, precond_file)
+  call getarg(4, solver_file)
+  call getarg(5, direction_file)
   
 
-  if(trim(grad_file) == '' .or. trim(precond_file) == '' .or. trim(direction_file) == '') then
+  if(trim(grad_file) == '' .or. trim(precond_file) == '' .or. trim(direction_file) == '' &
+       .or. trim(kernel_parfile) == '' .or. trim(solver_file) == '') then
         call exit_mpi('Usage: xcg_direction gradient_file precond_file direction_file')
   endif
 
@@ -52,7 +54,7 @@ program main
   
   !real(kind=CUSTOM_REAL), dimension(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNELS):: direction
 
-  character(len=512) :: grad_file, precond_file, direction_file,solver_file
+  character(len=512) :: grad_file, precond_file, direction_file,solver_file,kernel_parfile
   real(kind=CUSTOM_REAL):: gtp,gtg,gtp_old,gtg_old,gtp_all_tmp,gtg_all_tmp,max_direction,max_direction_all
   real(kind=CUSTOM_REAL),dimension(:),allocatable::gtp_all,gtg_all
   real(kind=CUSTOM_REAL)::min_direction,min_direction_all
@@ -61,14 +63,14 @@ program main
 
   call init_mpi()
 
-  call init_kernel_par()
+  call get_sys_args(kernel_parfile,grad_file, precond_file, direction_file,solver_file)
+  
+  call init_kernel_par(kernel_parfile)
 
   allocate(gradient(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB),direction(NGLLX, NGLLY, NGLLZ, NSPEC,NKERNEL_GLOB))
   allocate(jacobian(NGLLX, NGLLY, NGLLZ, NSPEC))
   allocate(gtp_all(NKERNEL_GLOB),gtg_all(NKERNEL_GLOB))
   
-
-  call get_sys_args(grad_file, precond_file, direction_file,solver_file)
 
   call adios_read_init_method(ADIOS_READ_METHOD_BP, MPI_COMM_WORLD, &
                               "verbose=1", ier)

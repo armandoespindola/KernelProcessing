@@ -10,7 +10,7 @@ FCFLAGS=-O3 -Wall -J $(OBJDIR) -I $(OBJDIR)
 
 # INTEL COMPILERS
 FC=ifort
-MPIFC=mpif90
+MPIFC=ftn
 FCFLAGS=-O3 -W1 -module $(OBJDIR) -I $(OBJDIR)
 
 

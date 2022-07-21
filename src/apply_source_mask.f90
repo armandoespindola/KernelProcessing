@@ -26,15 +26,16 @@ module src_mask_subs
 
   end subroutine create_name_database
 
-  subroutine get_sys_args(kernel_file, src_mask_dir, outputfn)
-    character(len=*), intent(inout) :: kernel_file, src_mask_dir, outputfn
+  subroutine get_sys_args(kernel_parfile,kernel_file, src_mask_dir, outputfn)
+    character(len=*), intent(inout) :: kernel_file, src_mask_dir,outputfn,kernel_parfile
 
-    call getarg(1, kernel_file)
-    call getarg(2, src_mask_dir)
-    call getarg(3, outputfn)
+    call getarg(1, kernel_parfile)
+    call getarg(2, kernel_file)
+    call getarg(3, src_mask_dir)
+    call getarg(4, outputfn)
 
     if(trim(kernel_file) == '' .or. trim(src_mask_dir) == '' &
-        .or. trim(outputfn) == '') then
+        .or. trim(outputfn) == '' .or. trim(kernel_parfile) == '') then
       call exit_mpi("Usage: xsrc_mask kernel_file src_mask_dir outputfn")
     endif
 
@@ -119,21 +120,20 @@ program apply_src_mask
   real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable:: kernels
   real(kind=CUSTOM_REAL), dimension(:,:,:,:),allocatable:: src_mask
 
-  character(len=512) :: mask_file,src_mask_path
+  character(len=512) :: mask_file,src_mask_path,kernel_parfile
   real(kind=CUSTOM_REAL) :: maxv, minv
   integer :: i, ier, IIN=321
 
   call init_mpi()
 
-  call init_kernel_par()
+  call get_sys_args(kernel_parfile,kernel_file, src_mask_dirs_file, outputfn)
+  call init_kernel_par(kernel_parfile)
 
   allocate(kernels(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB), &
        src_mask(NGLLX, NGLLY, NGLLZ, NSPEC),stat=ier)
 
   if (ier .ne. 0) write(*,*) "Error in memory allocation"
   !if (kernel_names(hess_idx) /= "hess_kl_crust_mantle") call exit_mpi("Incorrect hess_idx")
-
-  call get_sys_args(kernel_file, src_mask_dirs_file, outputfn)
 
   call adios_read_init_method(ADIOS_READ_METHOD_BP, MPI_COMM_WORLD, &
                               "verbose=1", ier)

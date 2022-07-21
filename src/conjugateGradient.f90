@@ -105,15 +105,17 @@ module ConjugateGradient
   end subroutine
 end module ConjugateGradient
 
-subroutine get_sys_args(grad_0_file, grad_1_file, &
+subroutine get_sys_args(kernel_parfile,grad_0_file, grad_1_file, &
                         direction_0_file, direction_1_file, solver_file)
 
   use global_var, only : myrank, exit_mpi
 
   character(len=*), intent(inout):: grad_0_file, grad_1_file
   character(len=*), intent(inout):: direction_0_file, direction_1_file
-  character(len=*), intent(inout):: solver_file
+  character(len=*), intent(inout):: solver_file,kernel_parfile
 
+
+  call getarg(1, kernel_parfile)
   call getarg(1, grad_0_file)
   call getarg(2, grad_1_file)
   call getarg(3, direction_0_file)
@@ -122,7 +124,7 @@ subroutine get_sys_args(grad_0_file, grad_1_file, &
 
   if(trim(grad_0_file) == '' .or. trim(grad_1_file) == '' &
      .or. trim(direction_0_file) == '' .or. trim(direction_1_file) == '' &
-     .or. trim(solver_file) == '') then
+     .or. trim(solver_file) == '' .or. trim(kernel_parfile) == '') then
         call exit_mpi('Usage: xcg_direction gradient_0_file '//&
           'gradient_1_file direction_0_file solver_bp_file outputfn')
   endif
@@ -162,7 +164,7 @@ program main
   real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable :: direction_0, direction_1
   real(kind=CUSTOM_REAL), dimension(:,:,:,:),allocatable :: jacobian
 
-  character(len=500) :: solver_file
+  character(len=500) :: solver_file,kernel_parfile
   character(len=500) :: grad_0_file, grad_1_file
   character(len=500) :: direction_0_file
   character(len=500) :: direction_1_file ! outputfn
@@ -174,7 +176,11 @@ program main
   integer:: ier
 
   call init_mpi()
-  call init_kernel_par()
+
+  call get_sys_args(kernel_parfile,grad_0_file, grad_1_file, &
+       direction_0_file, direction_1_file, solver_file)
+  
+  call init_kernel_par(kernel_parfile)
 
   allocate(gradient_0(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB), &
        gradient_1(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB), &
@@ -183,9 +189,6 @@ program main
        jacobian(NGLLX, NGLLY, NGLLZ, NSPEC))
 
   allocate(gtp_all(NKERNEL_GLOB),gtg_all(NKERNEL_GLOB))
-
-  call get_sys_args(grad_0_file, grad_1_file, &
-                    direction_0_file, direction_1_file, solver_file)
 
   call adios_read_init_method(ADIOS_READ_METHOD_BP, MPI_COMM_WORLD, &
                               "verbose=1", ier)

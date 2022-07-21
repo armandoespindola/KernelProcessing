@@ -38,10 +38,13 @@ module global_var
 
   !parameters for kernel processing
   integer :: NPAR_GLOB,NKERNEL_GLOB
-  integer :: QMU_IDX,KQMU_IDX
+  integer :: QMU_IDX,KQMU_IDX,NMODEL0,NMODEL_TOTAL
   logical :: ATTENUATION_FLAG
   character(len=500), dimension(:),allocatable :: KERNEL_NAMES_GLOB,MODEL_NAMES_GLOB,MODEL_PERTURB_NAMES_GLOB
-
+  character(len=500), dimension(:),allocatable :: MODEL0_NAMES,MODEL_NAMES_TOTAL
+  integer :: VPV_IDX,VPH_IDX,VSV_IDX,VSH_IDX,RHO_IDX,ETA_IDX
+  integer :: KVPV_IDX,KVPH_IDX,KVSV_IDX,KVSH_IDX,KRHO_IDX,KETA_IDX
+  
 
   contains
 
@@ -290,48 +293,124 @@ module global_var
     if (myrank == 0) print*, "MPI init with nprocs=", nprocs
   end subroutine init_mpi
 
-  subroutine init_kernel_par()
+  subroutine init_kernel_par(kernel_parfile)
+    character(len=*), intent(inout) :: kernel_parfile
 
-    !integer :: fh = 1001
+    integer :: fh = 1001
     integer :: i,ier
-    !character(len=500) :: line
+    character(len=500) :: line
+    ATTENUATION_FLAG = .false.
 
+    ! NPAR_GLOB=7
+    ! NKERNEL_GLOB=1
 
-    NPAR_GLOB=7
-    NKERNEL_GLOB=1
-
-    allocate(KERNEL_NAMES_GLOB(NKERNEL_GLOB),MODEL_NAMES_GLOB(NPAR_GLOB),MODEL_PERTURB_NAMES_GLOB(NPAR_GLOB),stat=ier)
+    ! allocate(KERNEL_NAMES_GLOB(NKERNEL_GLOB),MODEL_NAMES_GLOB(NPAR_GLOB),MODEL_PERTURB_NAMES_GLOB(NPAR_GLOB),stat=ier)
     
     
-    MODEL_NAMES_GLOB(1)="reg1/rho"
-    MODEL_NAMES_GLOB(2)="reg1/vpv"
-    MODEL_NAMES_GLOB(3)="reg1/vph"
-    MODEL_NAMES_GLOB(4)="reg1/vsv"
-    MODEL_NAMES_GLOB(5)="reg1/vsh"
-    MODEL_NAMES_GLOB(6)="reg1/eta"
-    MODEL_NAMES_GLOB(7)="reg1/qmu"
+    ! MODEL_NAMES_GLOB(1)="reg1/rho"
+    ! MODEL_NAMES_GLOB(2)="reg1/vpv"
+    ! MODEL_NAMES_GLOB(3)="reg1/vph"
+    ! MODEL_NAMES_GLOB(4)="reg1/vsv"
+    ! MODEL_NAMES_GLOB(5)="reg1/vsh"
+    ! MODEL_NAMES_GLOB(6)="reg1/eta"
+    ! MODEL_NAMES_GLOB(7)="reg1/qmu"
 
 
-    MODEL_PERTURB_NAMES_GLOB(1)="reg1/drhorho"
-    MODEL_PERTURB_NAMES_GLOB(2)="reg1/dvpvvpv"
-    MODEL_PERTURB_NAMES_GLOB(3)="reg1/dvphvph"
-    MODEL_PERTURB_NAMES_GLOB(4)="reg1/dvsvvsv"
-    MODEL_PERTURB_NAMES_GLOB(5)="reg1/dvshvsh"
-    MODEL_PERTURB_NAMES_GLOB(6)="reg1/detaeta"
-    MODEL_PERTURB_NAMES_GLOB(7)="reg1/dqmuqmu"
+    ! MODEL_PERTURB_NAMES_GLOB(1)="reg1/drhorho"
+    ! MODEL_PERTURB_NAMES_GLOB(2)="reg1/dvpvvpv"
+    ! MODEL_PERTURB_NAMES_GLOB(3)="reg1/dvphvph"
+    ! MODEL_PERTURB_NAMES_GLOB(4)="reg1/dvsvvsv"
+    ! MODEL_PERTURB_NAMES_GLOB(5)="reg1/dvshvsh"
+    ! MODEL_PERTURB_NAMES_GLOB(6)="reg1/detaeta"
+    ! MODEL_PERTURB_NAMES_GLOB(7)="reg1/dqmuqmu"
 
-    KERNEL_NAMES_GLOB(1)="mu_kl_crust_mantle"
+    ! KERNEL_NAMES_GLOB(1)="mu_kl_crust_mantle"
 
-    QMU_IDX = 7
-    KQMU_IDX = 1
-    ATTENUATION_FLAG=.true.
+    ! QMU_IDX = 7
+    ! KQMU_IDX = 1
+    ! ATTENUATION_FLAG=.true.
     
 
-    ! OPENING FILE TO READ PARAMETERS
+    !OPENING FILE TO READ PARAMETERS
 
-    ! open(fh,file="kernel_par", status='old')
-    ! read(fh,*) NPAR_GLOB,NKERNEL_GLOB
+    if (myrank == 0) print*, "KERNEL PARFILE: ",trim(kernel_parfile)
 
+    open(fh,file=trim(kernel_parfile), status='old')
+    read(fh,*) NPAR_GLOB
+    !if (myrank == 0) print*, NPAR_GLOB
+    
+    allocate(MODEL_NAMES_GLOB(NPAR_GLOB), &
+         MODEL_PERTURB_NAMES_GLOB(NPAR_GLOB),stat=ier)
+
+    do i=1,NPAR_GLOB
+       read(fh, '(A)') line
+       !if (myrank == 0) print*,trim(line)
+       MODEL_NAMES_GLOB(i)="reg1/"//trim(line)
+       MODEL_PERTURB_NAMES_GLOB(i)="reg1/d"//trim(line)//"d"//trim(line)
+    end do
+
+    read(fh,*) NKERNEL_GLOB
+    !if (myrank == 0) print*,NKERNEL_GLOB
+
+    allocate(KERNEL_NAMES_GLOB(NKERNEL_GLOB),stat=ier)
+    
+    do i=1,NKERNEL_GLOB
+       read(fh, '(A)') line
+       !if (myrank == 0) print*,trim(line)
+       KERNEL_NAMES_GLOB(i)=trim(line)
+    end do
+
+
+    read(fh,*) NMODEL0
+    !if (myrank == 0) print*,NMODEL0
+
+    if (NMODEL0 .gt. 0) then
+       allocate(MODEL0_NAMES(NMODEL0),stat=ier)
+       do i=1,NMODEL0
+          read(fh, '(A)') line
+          !if (myrank == 0) print*,trim(line)
+          MODEL0_NAMES(i)="reg1/"//trim(line)
+       end do
+    endif
+    
+    close(fh)
+
+    NMODEL_TOTAL = NPAR_GLOB + NMODEL0
+    allocate(MODEL_NAMES_TOTAL(NMODEL_TOTAL),stat=ier)
+
+    do i=1,NPAR_GLOB
+       MODEL_NAMES_TOTAL(i) = trim(MODEL_NAMES_GLOB(i))
+    enddo
+
+    if (NMODEL0 .gt. 0) then
+       do i=NPAR_GLOB,NMODEL_TOTAL-1
+          MODEL_NAMES_TOTAL(i+1) = trim(MODEL0_NAMES(i - NPAR_GLOB + 1))
+       enddo
+    end if
+
+
+
+    VPV_IDX = check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/vpv")
+    VPH_IDX = check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/vph")
+    VSV_IDX = check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/vsv")
+    VSH_IDX = check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/vsh")
+    RHO_IDX = check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/rho")
+    ETA_IDX = check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/eta")
+    QMU_IDX= check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/qmu")
+
+    KVPV_IDX = check_model(KERNEL_NAMES_GLOB,NKERNEL_GLOB,"bulk_c_kl_crust_mantle")
+    KVPH_IDX = KVPV_IDX 
+    KVSV_IDX = check_model(KERNEL_NAMES_GLOB,NKERNEL_GLOB,"bulk_betav_kl_crust_mantle")
+    KVSH_IDX = check_model(KERNEL_NAMES_GLOB,NKERNEL_GLOB,"bulk_betah_kl_crust_mantle")
+    KETA_IDX = check_model(KERNEL_NAMES_GLOB,NKERNEL_GLOB,"eta_kl_crust_mantle")
+
+
+    if (QMU_IDX .gt. 0 ) then
+       ATTENUATION_FLAG=.true.
+       KQMU_IDX= check_model(KERNEL_NAMES_GLOB,NKERNEL_GLOB,"mu_kl_crust_mantle")
+    endif
+    
+     
     ! if (myrank ==  0) print*, "########## Number of parameters for Kernel Processing #########"
     ! if (myrank ==  0) print*, "Npar: ",NPAR_GLOB
 
@@ -354,17 +433,25 @@ module global_var
     ! end do
 
 
-    do i=1,NPAR_GLOB
-       if (myrank==0) then 
+    
+    if (myrank==0) then
+       do i=1,NPAR_GLOB
           write(*, '(A,A)')"MODEL NAMES: " , trim(MODEL_NAMES_GLOB(i))
-       endif
-    enddo
+       enddo
+    endif
 
-    do i=1,NKERNEL_GLOB
-       if (myrank==0) then 
+   
+    if (myrank==0) then
+       do i=1,NKERNEL_GLOB
           write(*, '(A,A,X,A)')"KERNEL NAMES: " , trim(KERNEL_NAMES_GLOB(i)),trim(MODEL_PERTURB_NAMES_GLOB(i))
-       endif
-    enddo
+       enddo
+    endif
+
+    if (myrank==0) then
+       do i=1,NMODEL0
+          write(*, '(A,A)')"FIXED MODEL NAMES: " , trim(MODEL0_NAMES(i))
+       enddo
+    endif
     
     
     ! close(fh)
@@ -372,6 +459,20 @@ module global_var
   end subroutine init_kernel_par
 
 
+  function check_model(varlist,nvarlist,var_name) result(flag)
+    character(len=*), dimension(:), intent(in) :: varlist
+    character(len=*), intent(in) :: var_name
+    integer , intent (in) :: nvarlist
+    integer :: flag,i
+    flag=-1
+    do i=1,nvarlist
+       if (trim(varlist(i)) == trim(var_name)) then
+          flag = i
+       endif
+    enddo  
+
+  end function check_model
+    
 
   ! subroutine get_par(line,iline)
   !   character(len=*),intent(inout) :: line

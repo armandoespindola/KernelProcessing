@@ -2,7 +2,7 @@ module lbfgs_subs
 
   use mpi
   use global_var, only : CUSTOM_REAL, myrank, exit_mpi, NGLLX, NGLLY, NGLLZ, &
-                     NSPEC,NPAR_GLOB,KERNEL_NAMES_GLOB,NSPEC,NKERNEL_GLOB,QMU_IDX,MODEL_PERTURB_NAMES_GLOB
+                     NSPEC,NPAR_GLOB,KERNEL_NAMES_GLOB,NSPEC,NKERNEL_GLOB,MODEL_PERTURB_NAMES_GLOB
   use global_var, only : Parallel_ComputeInnerProduct, Parallel_ComputeL2normSquare,sum_all_all_cr
   use global_var, only : min_all_all_cr,max_all_all_cr
   use AdiosIO, only : read_bp_file_real
@@ -10,16 +10,18 @@ module lbfgs_subs
 
   contains
 
-  subroutine get_sys_args(input_path_file, solver_file, outputfn)
-    character(len=*), intent(inout) :: input_path_file, solver_file, outputfn
+  subroutine get_sys_args(kernel_parfile,input_path_file, solver_file, outputfn)
+    character(len=*), intent(inout) :: input_path_file, solver_file, outputfn,kernel_parfile
 
     if(myrank == 0) print*, '|<============= Get System Args =============>|'
-    call getarg(1, input_path_file)
-    call getarg(2, solver_file)
-    call getarg(3, outputfn)
+
+    call getarg(1, kernel_parfile)
+    call getarg(2, input_path_file)
+    call getarg(3, solver_file)
+    call getarg(4, outputfn)
 
     if(trim(input_path_file) == '' .or. trim(solver_file) == '' &
-        .or. trim(outputfn) == '') then
+        .or. trim(outputfn) == '' .or. trim(kernel_parfile) == '') then
       call exit_mpi("Usage: ./xlbfgs input_path_file solver_file outputfn")
     endif
 

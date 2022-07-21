@@ -61,28 +61,22 @@ contains
     close(fh)
   end subroutine read_event_file
 
-  subroutine get_sys_args(eventfile, outputfn,inputmodel)
-    character(len=*), intent(inout) :: eventfile, outputfn,inputmodel
+  subroutine get_sys_args(kernel_parfile,eventfile, outputfn,inputmodel)
+    character(len=*), intent(inout) :: eventfile, outputfn,inputmodel,kernel_parfile
 
-    call getarg(1, eventfile)
-    call getarg(2, outputfn)
-
-    if (ATTENUATION_FLAG) then
-       call getarg(3,inputmodel)
-       if(trim(inputmodel) == '' .or. trim(outputfn) == '' .or. trim(eventfile) == '' ) then
-      call exit_mpi("Usage: xsum_kernels eventfile outputfn inputmodel")
-   endif
-endif
-
-
-    if(trim(eventfile) == '' .or. trim(outputfn) == '') then
+    call getarg(1, kernel_parfile)
+    call getarg(2, eventfile)
+    call getarg(3, outputfn)
+    call getarg(4,inputmodel)
+    
+    if(trim(eventfile) == '' .or. trim(outputfn) == '' .or. trim(kernel_parfile) == '') then
       call exit_mpi("Usage: xsum_kernels eventfile outputfn")
     endif
 
     if(myrank == 0) then
       write(*, *) "Event file(in): ", trim(eventfile)
       write(*, *) "Output file(out, kernel sums): ", trim(outputfn)
-      if (ATTENUATION_FLAG) write(*, *) "Input model(in): ", trim(inputmodel)
+      write(*, *) "Input model(in): ", trim(inputmodel)
     endif
   end subroutine
 
@@ -94,14 +88,14 @@ program sum_kernels
   use adios_read_mod
   use global_var, only : CUSTOM_REAL, NGLLX, NGLLY, NGLLZ, NSPEC, myrank,init_kernel_par,NPAR_GLOB,NKERNEL_GLOB
   use global_var, only : init_mpi, exit_mpi,KERNEL_NAMES_GLOB,MODEL_NAMES_GLOB
-  use global_var, only : ATTENUATION_FLAG,QMU_IDX,KQMU_IDX
+  use global_var, only : ATTENUATION_FLAG,QMU_IDX
   use AdiosIO
   use sum_kernels_subs
 
   implicit none
 
   integer:: nevent, ievent, ier
-  character(len=500) :: eventfile, outputfn, kernel_file,input_model_file
+  character(len=500) :: eventfile, outputfn, kernel_file,input_model_file,kernel_parfile
 
   character(len=500), dimension(:), allocatable :: kernel_list
   real(kind=CUSTOM_REAL):: weight
@@ -131,13 +125,14 @@ program sum_kernels
 
   call init_mpi()
 
-  call init_kernel_par()
+  call get_sys_args(kernel_parfile,eventfile, outputfn,input_model_file)
+  
+  call init_kernel_par(kernel_parfile)
 
   allocate(total_kernel(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB),kernels(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB))
 
 !  if (kernel_names(hess_idx) /= "hess_kl_crust_mantle") call exit_mpi("Incorrect hess_idx")
 
-  call get_sys_args(eventfile, outputfn,input_model_file)
   call read_event_file(eventfile, nevent, kernel_list, weight_list)
 
   call adios_read_init_method(ADIOS_READ_METHOD_BP, MPI_COMM_WORLD, &
@@ -167,7 +162,7 @@ program sum_kernels
   call write_bp_file(total_kernel, KERNEL_NAMES_GLOB, "KERNEL_GROUPS", outputfn)
 
   if (ATTENUATION_FLAG) then
-
+     if (myrank==0) print*, "Reading model to cast dq to logdq"
      call init_sum_kernel_model()
      ! reads in current transverse isotropic model files: vpv.. & vsv.. & eta & rho
      if(myrank == 0) print*, "|<---- Reading Model File ---->|", trim(input_model_file)
@@ -178,7 +173,7 @@ program sum_kernels
      if (myrank == 0) write(*, *) "|<----- Reading Sum Kernel ----->| ", trim(outputfn)
      call read_bp_file_real(outputfn,KERNEL_NAMES_GLOB, total_kernel)
 
-     total_kernel(:,:,:,:,KQMU_IDX) = total_kernel(:,:,:,:,KQMU_IDX) * 1.0 / models(:,:,:,:,QMU_IDX)
+     total_kernel(:,:,:,:,QMU_IDX) = total_kernel(:,:,:,:,QMU_IDX) * 1.0 / models(:,:,:,:,QMU_IDX)
 
      call write_bp_file(total_kernel, KERNEL_NAMES_GLOB, "KERNEL_GROUPS", outputfn)
 
