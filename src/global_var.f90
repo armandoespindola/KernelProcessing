@@ -41,9 +41,10 @@ module global_var
   integer :: QMU_IDX,KQMU_IDX,NMODEL0,NMODEL_TOTAL
   logical :: ATTENUATION_FLAG
   character(len=500), dimension(:),allocatable :: KERNEL_NAMES_GLOB,MODEL_NAMES_GLOB,MODEL_PERTURB_NAMES_GLOB
-  character(len=500), dimension(:),allocatable :: MODEL0_NAMES,MODEL_NAMES_TOTAL
-  integer :: VPV_IDX,VPH_IDX,VSV_IDX,VSH_IDX,RHO_IDX,ETA_IDX
-  integer :: KVPV_IDX,KVPH_IDX,KVSV_IDX,KVSH_IDX,KRHO_IDX,KETA_IDX
+  character(len=500), dimension(:),allocatable :: MODEL0_NAMES,MODEL_NAMES_TOTAL,KERNEL_NAMES_GLOB_NQ
+  character(len=500) :: MODEL
+  integer :: VPV_IDX,VPH_IDX,VSV_IDX,VSH_IDX,RHO_IDX,ETA_IDX,VP_IDX,VS_IDX
+  integer :: KVPV_IDX,KVPH_IDX,KVSV_IDX,KVSH_IDX,KRHO_IDX,KETA_IDX,KVP_IDX,KVS_IDX
   
 
   contains
@@ -297,7 +298,7 @@ module global_var
     character(len=*), intent(inout) :: kernel_parfile
 
     integer :: fh = 1001
-    integer :: i,ier
+    integer :: i,ier,k
     character(len=500) :: line
     ATTENUATION_FLAG = .false.
 
@@ -336,6 +337,8 @@ module global_var
     if (myrank == 0) print*, "KERNEL PARFILE: ",trim(kernel_parfile)
 
     open(fh,file=trim(kernel_parfile), status='old')
+    read(fh, '(A)') line
+    MODEL = trim(line)
     read(fh,*) NPAR_GLOB
     !if (myrank == 0) print*, NPAR_GLOB
     
@@ -359,7 +362,6 @@ module global_var
        !if (myrank == 0) print*,trim(line)
        KERNEL_NAMES_GLOB(i)=trim(line)
     end do
-
 
     read(fh,*) NMODEL0
     !if (myrank == 0) print*,NMODEL0
@@ -390,27 +392,56 @@ module global_var
 
 
 
-    VPV_IDX = check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/vpv")
-    VPH_IDX = check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/vph")
-    VSV_IDX = check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/vsv")
-    VSH_IDX = check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/vsh")
-    RHO_IDX = check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/rho")
-    ETA_IDX = check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/eta")
-    QMU_IDX= check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/qmu")
+    if (trim(MODEL) == "TISO") then
+       VPV_IDX = check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/vpv")
+       VPH_IDX = check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/vph")
+       VSV_IDX = check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/vsv")
+       VSH_IDX = check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/vsh")
+       RHO_IDX = check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/rho")
+       ETA_IDX = check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/eta")
+       QMU_IDX= check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/qmu")
 
-    KVPV_IDX = check_model(KERNEL_NAMES_GLOB,NKERNEL_GLOB,"bulk_c_kl_crust_mantle")
-    KVPH_IDX = KVPV_IDX 
-    KVSV_IDX = check_model(KERNEL_NAMES_GLOB,NKERNEL_GLOB,"bulk_betav_kl_crust_mantle")
-    KVSH_IDX = check_model(KERNEL_NAMES_GLOB,NKERNEL_GLOB,"bulk_betah_kl_crust_mantle")
-    KETA_IDX = check_model(KERNEL_NAMES_GLOB,NKERNEL_GLOB,"eta_kl_crust_mantle")
+       KVPV_IDX = check_model(KERNEL_NAMES_GLOB,NKERNEL_GLOB,"bulk_c_kl_crust_mantle")
+       KVPH_IDX = KVPV_IDX 
+       KVSV_IDX = check_model(KERNEL_NAMES_GLOB,NKERNEL_GLOB,"bulk_betav_kl_crust_mantle")
+       KVSH_IDX = check_model(KERNEL_NAMES_GLOB,NKERNEL_GLOB,"bulk_betah_kl_crust_mantle")
+       KETA_IDX = check_model(KERNEL_NAMES_GLOB,NKERNEL_GLOB,"eta_kl_crust_mantle")
+    endif
 
+    if (trim(MODEL) == "ISO") then
+       VP_IDX =  check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/vp")
+       VS_IDX =  check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/vs")
+       RHO_IDX =  check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/rho")
+       QMU_IDX= check_model(MODEL_NAMES_GLOB,NPAR_GLOB,"reg1/qmu")
+       
+       KVP_IDX = check_model(KERNEL_NAMES_GLOB,NKERNEL_GLOB,"bulk_c_kl_crust_mantle")
+       KVS_IDX = check_model(KERNEL_NAMES_GLOB,NKERNEL_GLOB,"bulk_beta_kl_crust_mantle")
+    
+    endif
+    
+ 
 
     if (QMU_IDX .gt. 0 ) then
        ATTENUATION_FLAG=.true.
        KQMU_IDX= check_model(KERNEL_NAMES_GLOB,NKERNEL_GLOB,"mu_kl_crust_mantle")
     endif
     
-     
+
+    if ((ATTENUATION_FLAG) .and. (NPAR_GLOB .gt. 1)) then
+       ! KERNEL_NAMES_GLOB WIHOUT ATTENUATION_NAME
+       allocate(KERNEL_NAMES_GLOB_NQ(NKERNEL_GLOB - 1))
+       k=1
+       do i=1,NKERNEL_GLOB
+          if ("mu_kl_crust_mantle" .ne. trim(KERNEL_NAMES_GLOB(i))) then
+             KERNEL_NAMES_GLOB_NQ(k) = trim(KERNEL_NAMES_GLOB(i))
+             k = k + 1
+          endif
+          
+       enddo
+       
+    endif
+
+
     ! if (myrank ==  0) print*, "########## Number of parameters for Kernel Processing #########"
     ! if (myrank ==  0) print*, "Npar: ",NPAR_GLOB
 
@@ -468,6 +499,8 @@ module global_var
     do i=1,nvarlist
        if (trim(varlist(i)) == trim(var_name)) then
           flag = i
+          if (myrank==0) print*,trim(varlist(i)),trim(var_name),flag
+          exit
        endif
     enddo  
 
