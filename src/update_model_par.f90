@@ -650,7 +650,7 @@ contains
     real(kind=CUSTOM_REAL), dimension(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_GLOB) :: models_perturb
 
     where(models /= 0.0)
-      models_perturb = log(models_new / models)
+      models_perturb = (models_new - models) / models
     elsewhere
       models_perturb = 0.0
     end where

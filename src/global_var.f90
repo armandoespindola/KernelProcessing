@@ -499,7 +499,7 @@ module global_var
     do i=1,nvarlist
        if (trim(varlist(i)) == trim(var_name)) then
           flag = i
-          if (myrank==0) print*,trim(varlist(i)),trim(var_name),flag
+          if (myrank==0) write(*,'(A, I3)')trim(var_name),flag
           exit
        endif
     enddo  

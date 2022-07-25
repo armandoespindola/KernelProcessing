@@ -180,9 +180,11 @@ module AdiosIO
 
     nvars = size(varnames)
     do iker = 1, nvars
+    
       call adios_get_scalar(read_handle, trim(varnames(iker))//"/local_dim",&
                             local_dim, ier)
       start(1) = local_dim * myrank
+    
       !count_ad(1) = NGLLX * NGLLY * NGLLZ * nspec
       count_ad(1) = local_dim
 

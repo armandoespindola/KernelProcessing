@@ -131,7 +131,7 @@ program sum_kernels
   
   call init_kernel_par(kernel_parfile)
 
-  allocate(total_kernel(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB),kernels(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB))
+ allocate(total_kernel(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB),kernels(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB))
 
 !  if (kernel_names(hess_idx) /= "hess_kl_crust_mantle") call exit_mpi("Incorrect hess_idx")
 
@@ -141,6 +141,7 @@ program sum_kernels
       
 
   if ((ATTENUATION_FLAG) .and. (len(trim(eventfile_qmu)) .gt. 0)) then
+     if (myrank==0) write(*,*) " ---> Attenuation event file <---"
      call read_event_file(eventfile_qmu, nevent, kernel_list_qmu, weight_list_qmu)
   end if
   
@@ -155,15 +156,17 @@ program sum_kernels
      kernel_file = kernel_list(ievent)
      weight = weight_list(ievent)
 
-     if (myrank==0) write(*,*) 'Reading in kernel for [', ievent, &
-          "/", nevent, "]: ", trim(kernel_file), " | weight: ", weight
 
      if ((ATTENUATION_FLAG) .and. (NPAR_GLOB .gt. 1)) then
-        if (myrank ==0) then
-           do i=1,NKERNEL_GLOB -1
-             print*, "reading: ",trim(KERNEL_NAMES_GLOB_NQ(i)) 
-           enddo
-        endif
+     !   if (myrank ==0) then
+     !       do i=1,NKERNEL_GLOB -1
+     !         print*, "reading: ",trim(KERNEL_NAMES_GLOB_NQ(i)) 
+     !       enddo
+     !    endif
+
+        if (myrank==0) write(*,*) 'Reading in kernel for [', ievent, &
+             "/", nevent, "]: ", trim(kernel_file), " | weight: ", weight
+             
         call read_bp_file_real(kernel_file, KERNEL_NAMES_GLOB_NQ, kernels)
      else
         call read_bp_file_real(kernel_file, KERNEL_NAMES_GLOB, kernels)
@@ -203,7 +206,7 @@ program sum_kernels
      if (myrank == 0) write(*, *) "|<----- Reading Sum Kernel ----->| ", trim(outputfn)
      call read_bp_file_real(outputfn,KERNEL_NAMES_GLOB, total_kernel)
 
-     total_kernel(:,:,:,:,QMU_IDX) = total_kernel(:,:,:,:,QMU_IDX) * 1.0 / models(:,:,:,:,QMU_IDX)
+     total_kernel(:,:,:,:,KQMU_IDX) = total_kernel(:,:,:,:,KQMU_IDX) * 1.0 / models(:,:,:,:,QMU_IDX)
 
      call write_bp_file(total_kernel, KERNEL_NAMES_GLOB, "KERNEL_GROUPS", outputfn)
 
@@ -216,8 +219,13 @@ program sum_kernels
   if (myrank==0) print*, 'Done summing all the kernels'
   if (myrank==0) print*, "output file: ", trim(outputfn)
 
+  call MPI_Barrier(MPI_COMM_WORLD, ier)
+  
   call adios_finalize(myrank, ier)
+  
   deallocate(total_kernel,kernels)
+
+  call MPI_Barrier(MPI_COMM_WORLD, ier)
   call MPI_FINALIZE(ier)
 
 end program sum_kernels
