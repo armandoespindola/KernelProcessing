@@ -625,7 +625,12 @@ contains
         do j = 1, NGLLY
            do i = 1, NGLLX
 
+
+              
               qmu0 = models(i,j,k,ispec,QMU_IDX)
+
+           
+                 
               models_new(i,j,k,ispec,QMU_IDX) = 1.0 / ( (1.0 / qmu0) * exp(model_dqmu(i,j,k,ispec)) )
 
               ! Limits for attenuation model
@@ -635,6 +640,7 @@ contains
                  models_new(i,j,k,ispec,QMU_IDX) = qmu_min
               endif
 
+           
              
            enddo
         enddo

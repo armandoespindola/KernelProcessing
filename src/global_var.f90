@@ -302,6 +302,25 @@ module global_var
     character(len=500) :: line
     ATTENUATION_FLAG = .false.
 
+    VPV_IDX = -1
+    VPH_IDX = -1
+    VSV_IDX = -1
+    VSH_IDX = -1
+    RHO_IDX = -1
+    ETA_IDX = -1
+    VP_IDX = -1
+    VS_IDX = -1
+
+    
+    KVPV_IDX = -1
+    KVPH_IDX = -1
+    KVSV_IDX = -1
+    KVSH_IDX = -1
+    KRHO_IDX = -1
+    KETA_IDX = -1
+    KVP_IDX = -1
+    KVS_IDX = -1
+    
     ! NPAR_GLOB=7
     ! NKERNEL_GLOB=1
 
