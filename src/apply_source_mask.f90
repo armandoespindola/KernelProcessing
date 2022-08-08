@@ -89,7 +89,7 @@ program apply_src_mask
   use global_var, only : CUSTOM_REAL, NGLLX, NGLLY, NGLLZ, NSPEC, myrank
   use global_var, only : init_mpi, exit_mpi, max_all_all_cr, min_all_all_cr,init_kernel_par
   use global_var, only : KERNEL_NAMES_GLOB,MODEL_NAMES_GLOB,MODEL_PERTURB_NAMES_GLOB
-  use global_var, only : NPAR_GLOB,NKERNEL_GLOB
+  use global_var, only : NPAR_GLOB,NKERNEL_GLOB,KER_HESS_NAMES_GLOB
   use AdiosIO
   use src_mask_subs
   implicit none
@@ -129,7 +129,7 @@ program apply_src_mask
   call get_sys_args(kernel_parfile,kernel_file, src_mask_dirs_file, outputfn)
   call init_kernel_par(kernel_parfile)
 
-  allocate(kernels(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB), &
+  allocate(kernels(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB*2), &
        src_mask(NGLLX, NGLLY, NGLLZ, NSPEC),stat=ier)
 
   if (ier .ne. 0) write(*,*) "Error in memory allocation"
@@ -140,7 +140,7 @@ program apply_src_mask
 
   ! read in kernel
   if (myrank == 0) write(*, *) 'Reading in kernel'
-  call read_bp_file_real(kernel_file, KERNEL_NAMES_GLOB, kernels)
+  call read_bp_file_real(kernel_file, KER_HESS_NAMES_GLOB, kernels)
 
   ! read in source mask
   call read_event_file(src_mask_dirs_file, nevent, kernel_list)
@@ -167,13 +167,13 @@ program apply_src_mask
   if(myrank == 0) write(*, *) 'Min and Max value of source mask:', minv, maxv
 
   ! apply the source mask to kernels, excluding hessian ones
-  do i=1, NKERNEL_GLOB
+  do i=1, NKERNEL_GLOB*2
     kernels(:, :, :, :, i) = kernels(:, :, :, :, i) * src_mask
   enddo
 
 enddo
   ! write the kernels out
-  call write_bp_file(kernels, KERNEL_NAMES_GLOB, "KERNEL_GROUPS", outputfn)
+  call write_bp_file(kernels, KER_HESS_NAMES_GLOB, "KERNEL_GROUPS", outputfn)
 
   if (myrank==0) write(*, *) 'Done applying source mask'
 

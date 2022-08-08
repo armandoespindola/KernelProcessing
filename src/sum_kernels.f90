@@ -1,7 +1,7 @@
 module sum_kernels_subs
 
   use global_var, only : CUSTOM_REAL, myrank, exit_mpi,init_kernel_par
-  use global_var, only : NGLLX, NGLLY, NGLLZ, NSPEC,NPAR_GLOB,ATTENUATION_FLAG
+  use global_var, only : NGLLX, NGLLY, NGLLZ, NSPEC,NPAR_GLOB,ATTENUATION_FLAG,NKERNEL_GLOB
   implicit none
    ! model updates
   real(kind=CUSTOM_REAL), dimension(:,:,:,:,:), allocatable :: models
@@ -80,7 +80,7 @@ contains
       if (len(trim(eventfile_qmu)) .gt. 0) write(*, *) "Event file attenuation(in): ", trim(eventfile_qmu) 
       write(*, *) "Input model(in): ", trim(inputmodel)
     endif
-  end subroutine
+  end subroutine get_sys_args
 
 end module sum_kernels_subs
 
@@ -90,13 +90,13 @@ program sum_kernels
   use adios_read_mod
   use global_var, only : CUSTOM_REAL, NGLLX, NGLLY, NGLLZ, NSPEC, myrank,init_kernel_par,NPAR_GLOB,NKERNEL_GLOB
   use global_var, only : init_mpi, exit_mpi,KERNEL_NAMES_GLOB,MODEL_NAMES_GLOB,KERNEL_NAMES_GLOB_NQ
-  use global_var, only : ATTENUATION_FLAG,QMU_IDX,KQMU_IDX
+  use global_var, only : ATTENUATION_FLAG,QMU_IDX,KQMU_IDX,KER_HESS_NAMES_GLOB
   use AdiosIO
   use sum_kernels_subs
 
   implicit none
 
-  integer:: nevent, ievent, ier,i
+  integer:: nevent, ievent, ier,i,idx
   character(len=500) :: eventfile, outputfn, kernel_file,input_model_file,kernel_parfile,kernel_file_qmu
   character(len=500) :: eventfile_qmu
   character(len=500), dimension(:), allocatable :: kernel_list,kernel_list_qmu
@@ -131,7 +131,8 @@ program sum_kernels
   
   call init_kernel_par(kernel_parfile)
 
- allocate(total_kernel(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB),kernels(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB))
+  allocate(total_kernel(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB*2),kernels(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB))
+
 
 !  if (kernel_names(hess_idx) /= "hess_kl_crust_mantle") call exit_mpi("Incorrect hess_idx")
 
@@ -186,12 +187,18 @@ program sum_kernels
     !kernels(:, :, :, :, hess_idx) = abs(kernels(:, :, :, :, hess_idx))
     !kernels(:, :, :, :, hess_idx:(hess_idx+2)) = abs(kernels(:, :, :, :, hess_idx:(hess_idx+2)))
 
-    total_kernel = total_kernel + kernels * weight
- end do
+    do idx=1,NKERNEL_GLOB
+       total_kernel(:,:,:,:,idx) = total_kernel(:,:,:,:,idx) + kernels(:,:,:,:,idx) * weight
+    enddo
+    ! subspace diagonal hessian
+    do idx=NKERNEL_GLOB+1,NKERNEL_GLOB*2
+       total_kernel(:,:,:,:,idx)  = total_kernel(:,:,:,:,idx) + &
+            kernels(:,:,:,:,idx-NKERNEL_GLOB)**2 
+    enddo
+ enddo
 
 
- call write_bp_file(total_kernel, KERNEL_NAMES_GLOB, "KERNEL_GROUPS", outputfn)
- 
+ call write_bp_file(total_kernel, KER_HESS_NAMES_GLOB, "KERNEL_GROUPS", outputfn)
  
 
   if (ATTENUATION_FLAG) then
@@ -204,11 +211,19 @@ program sum_kernels
      total_kernel = 0.0d0
      
      if (myrank == 0) write(*, *) "|<----- Reading Sum Kernel ----->| ", trim(outputfn)
-     call read_bp_file_real(outputfn,KERNEL_NAMES_GLOB, total_kernel)
+     call read_bp_file_real(outputfn,KER_HESS_NAMES_GLOB, total_kernel)
 
-     total_kernel(:,:,:,:,KQMU_IDX) = total_kernel(:,:,:,:,KQMU_IDX) * 1.0 / models(:,:,:,:,QMU_IDX)
+     total_kernel(:,:,:,:,KQMU_IDX) = &
+          total_kernel(:,:,:,:,KQMU_IDX) * 1.0 / models(:,:,:,:,QMU_IDX)
+     
+     total_kernel(:,:,:,:,KQMU_IDX + NKERNEL_GLOB) = &
+          total_kernel(:,:,:,:,KQMU_IDX + NKERNEL_GLOB) &
+          * (1.0 / models(:,:,:,:,QMU_IDX))**2.0
 
-     call write_bp_file(total_kernel, KERNEL_NAMES_GLOB, "KERNEL_GROUPS", outputfn)
+
+     call write_bp_file(total_kernel, KER_HESS_NAMES_GLOB, "KERNEL_GROUPS", outputfn)
+     
+     
 
      call clean_sum_kernel_model()
      

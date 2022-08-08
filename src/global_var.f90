@@ -9,8 +9,8 @@ module global_var
   ! values from the mesh
   double precision, parameter :: GAUSSALPHA = 0.d0, GAUSSBETA = 0.d0
   integer, parameter :: NGLLX = 5, NGLLY = NGLLX, NGLLZ = NGLLX
-  integer, parameter :: NSPEC_CRUST_MANTLE = 556
-  integer, parameter :: NGLOB_CRUST_MANTLE = 39929 
+  integer, parameter :: NSPEC_CRUST_MANTLE = 492
+  integer, parameter :: NGLOB_CRUST_MANTLE = 35573
   integer, parameter :: NSPEC = NSPEC_CRUST_MANTLE
   integer, parameter :: NGLOB = NGLOB_CRUST_MANTLE
 
@@ -41,6 +41,7 @@ module global_var
   integer :: QMU_IDX,KQMU_IDX,NMODEL0,NMODEL_TOTAL
   logical :: ATTENUATION_FLAG
   character(len=500), dimension(:),allocatable :: KERNEL_NAMES_GLOB,MODEL_NAMES_GLOB,MODEL_PERTURB_NAMES_GLOB
+  character(len=500), dimension(:),allocatable :: KER_HESS_NAMES_GLOB
   character(len=500), dimension(:),allocatable :: MODEL0_NAMES,MODEL_NAMES_TOTAL,KERNEL_NAMES_GLOB_NQ
   character(len=500) :: MODEL
   integer :: VPV_IDX,VPH_IDX,VSV_IDX,VSH_IDX,RHO_IDX,ETA_IDX,VP_IDX,VS_IDX
@@ -374,12 +375,14 @@ module global_var
     read(fh,*) NKERNEL_GLOB
     !if (myrank == 0) print*,NKERNEL_GLOB
 
-    allocate(KERNEL_NAMES_GLOB(NKERNEL_GLOB),stat=ier)
+    allocate(KERNEL_NAMES_GLOB(NKERNEL_GLOB),KER_HESS_NAMES_GLOB(NKERNEL_GLOB*2),stat=ier)
     
     do i=1,NKERNEL_GLOB
        read(fh, '(A)') line
        !if (myrank == 0) print*,trim(line)
        KERNEL_NAMES_GLOB(i)=trim(line)
+       KER_HESS_NAMES_GLOB(i)=trim(line)
+       KER_HESS_NAMES_GLOB(i + NKERNEL_GLOB)="hess_"//trim(line)
     end do
 
     read(fh,*) NMODEL0
