@@ -1,6 +1,6 @@
 module sum_kernels_subs
-
-  use global_var, only : CUSTOM_REAL, myrank, exit_mpi,init_kernel_par
+  use mpi
+  use global_var, only : CUSTOM_REAL, myrank, exit_mpi,init_kernel_par,nprocs,CUSTOM_MPI_TYPE
   use global_var, only : NGLLX, NGLLY, NGLLZ, NSPEC,NPAR_GLOB,ATTENUATION_FLAG,NKERNEL_GLOB
   implicit none
    ! model updates
@@ -81,6 +81,90 @@ contains
       write(*, *) "Input model(in): ", trim(inputmodel)
     endif
   end subroutine get_sys_args
+
+
+    subroutine clip_sem(kernels,percentile)
+    real(kind=CUSTOM_REAL), dimension(:, :, :, :, :), intent(inout) :: kernels
+    real(kind=CUSTOM_REAL),intent(in) :: percentile
+    real(kind=CUSTOM_REAL), dimension(:,:),allocatable:: ksort,ksort_full
+    real(kind=CUSTOM_REAL),dimension(:),allocatable::kpercent
+    real(kind=CUSTOM_REAL) :: val
+    integer :: ier,i,j,k,ispec,iker,npercent
+
+
+    npercent = int(floor(percentile * NSPEC * nprocs))
+    
+    allocate(ksort(NSPEC,NKERNEL_GLOB),stat=ier)
+    allocate(ksort_full(NSPEC*nprocs,NKERNEL_GLOB),kpercent(NKERNEL_GLOB),stat=ier)
+
+    ksort = 0._CUSTOM_REAL
+    ksort_full = 0._CUSTOM_REAL
+    kpercent = 0._CUSTOM_REAL
+    ! Prepare array for sorting
+    do iker = 1,NKERNEL_GLOB
+       do ispec = 1, NSPEC 
+          ksort(ispec,iker) = maxval(abs(kernels(:,:,:,ispec,iker)))
+       enddo
+       call quicksort(ksort(:,iker),1,NSPEC)
+       call MPI_ALLGATHER(ksort(:,iker),NSPEC,CUSTOM_MPI_TYPE,ksort_full(:,iker),NSPEC, &
+            CUSTOM_MPI_TYPE,MPI_COMM_WORLD,ier)
+       call quicksort(ksort_full(:,iker),1,NSPEC*nprocs)
+       kpercent(iker) = ksort_full(npercent,iker)
+    enddo
+
+    if (myrank==0) then
+       write(*,*) "Percentil Kernels"
+       do i=1,NKERNEL_GLOB
+          write(*,*) "<Percentile,Value Kernel>",percentile*100,kpercent(i)
+       enddo
+    endif
+
+    do iker = 1,NKERNEL_GLOB
+       do ispec = 1, NSPEC
+          do k = 1, NGLLZ
+             do j = 1, NGLLY
+                do i = 1, NGLLX
+                   val = abs(kernels(i,j,k,ispec,iker))
+                   if (val > kpercent(iker)) then
+                      kernels(i,j,k,ispec,iker) = 0._CUSTOM_REAL
+                   endif
+                enddo
+             enddo
+          enddo
+       enddo
+    enddo
+ 
+    
+    
+  end subroutine clip_sem
+
+
+  recursive subroutine quicksort(a, first, last)
+    implicit none
+    real(kind=CUSTOM_REAL),dimension(:) :: a
+    real :: x, t
+    integer :: first, last
+    integer :: i, j
+
+    x = a( (first+last) / 2 )
+    i = first
+    j = last
+    do
+       do while (a(i) < x)
+          i=i+1
+       end do
+       do while (x < a(j))
+          j=j-1
+       end do
+       if (i >= j) exit
+       t = a(i);  a(i) = a(j);  a(j) = t
+       i=i+1
+       j=j-1
+    end do
+    if (first < i-1) call quicksort(a, first, i-1)
+    if (j+1 < last)  call quicksort(a, j+1, last)
+  end subroutine quicksort
+  
 
 end module sum_kernels_subs
 
@@ -187,6 +271,9 @@ program sum_kernels
     !kernels(:, :, :, :, hess_idx) = abs(kernels(:, :, :, :, hess_idx))
     !kernels(:, :, :, :, hess_idx:(hess_idx+2)) = abs(kernels(:, :, :, :, hess_idx:(hess_idx+2)))
 
+    if (myrank == 0) write(*, *) 'Cliping kernels 99.9'
+    call clip_sem(kernels,0.9990)
+    
     do idx=1,NKERNEL_GLOB
        total_kernel(:,:,:,:,idx) = total_kernel(:,:,:,:,idx) + kernels(:,:,:,:,idx) * weight
     enddo
