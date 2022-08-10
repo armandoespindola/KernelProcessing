@@ -121,7 +121,7 @@ program apply_src_mask
   real(kind=CUSTOM_REAL), dimension(:,:,:,:),allocatable:: src_mask
 
   character(len=512) :: mask_file,src_mask_path,kernel_parfile
-  real(kind=CUSTOM_REAL) :: maxv, minv,maxhess
+  real(kind=CUSTOM_REAL) :: maxv, minv
   integer :: i, ier, IIN=321
 
   call init_mpi()
@@ -168,13 +168,7 @@ program apply_src_mask
 
   ! apply the source mask to kernels, excluding hessian ones
   do i=1, NKERNEL_GLOB*2
-     if ( i > NKERNEL_GLOB) then
-        max_all_all_cr(maxval(abs(kernels(:,:,:,:,i))),maxhess)
-        kernels(:, :, :, :, i) = kernels(:, :, :, :, i) * src_mask / maxhess
-     else
         kernels(:, :, :, :, i) = kernels(:, :, :, :, i) * src_mask
-     endif
-     
   enddo
 
 enddo

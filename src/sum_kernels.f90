@@ -272,7 +272,7 @@ program sum_kernels
     !kernels(:, :, :, :, hess_idx) = abs(kernels(:, :, :, :, hess_idx))
     !kernels(:, :, :, :, hess_idx:(hess_idx+2)) = abs(kernels(:, :, :, :, hess_idx:(hess_idx+2)))
 
-    if (myrank == 0) write(*, *) 'Cliping kernels 99.8'
+    if (myrank == 0) write(*, *) 'Cliping kernels 99.8',ievent
     call clip_sem(kernels,0.9980)
     
     do idx=1,NKERNEL_GLOB
