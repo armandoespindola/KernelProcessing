@@ -108,6 +108,7 @@ contains
        call quicksort(ksort(:,iker),1,NSPEC)
        call MPI_ALLGATHER(ksort(:,iker),NSPEC,CUSTOM_MPI_TYPE,ksort_full(:,iker),NSPEC, &
             CUSTOM_MPI_TYPE,MPI_COMM_WORLD,ier)
+       call MPI_Barrier(MPI_COMM_WORLD, ier)
        call quicksort(ksort_full(:,iker),1,NSPEC*nprocs)
        kpercent(iker) = ksort_full(npercent,iker)
     enddo
@@ -134,16 +135,16 @@ contains
        enddo
     enddo
  
-    
+    call MPI_Barrier(MPI_COMM_WORLD, ier)
     
   end subroutine clip_sem
 
 
   recursive subroutine quicksort(a, first, last)
     implicit none
-    real(kind=CUSTOM_REAL),dimension(:) :: a
+    real(kind=CUSTOM_REAL),dimension(:),intent(inout) :: a
+    integer,intent(in) :: first, last
     real :: x, t
-    integer :: first, last
     integer :: i, j
 
     x = a( (first+last) / 2 )
@@ -174,7 +175,7 @@ program sum_kernels
   use adios_read_mod
   use global_var, only : CUSTOM_REAL, NGLLX, NGLLY, NGLLZ, NSPEC, myrank,init_kernel_par,NPAR_GLOB,NKERNEL_GLOB
   use global_var, only : init_mpi, exit_mpi,KERNEL_NAMES_GLOB,MODEL_NAMES_GLOB,KERNEL_NAMES_GLOB_NQ
-  use global_var, only : ATTENUATION_FLAG,QMU_IDX,KQMU_IDX,KER_HESS_NAMES_GLOB
+  use global_var, only : ATTENUATION_FLAG,QMU_IDX,KQMU_IDX,KER_HESS_NAMES_GLOB,max_all_all_cr
   use AdiosIO
   use sum_kernels_subs
 
@@ -271,8 +272,8 @@ program sum_kernels
     !kernels(:, :, :, :, hess_idx) = abs(kernels(:, :, :, :, hess_idx))
     !kernels(:, :, :, :, hess_idx:(hess_idx+2)) = abs(kernels(:, :, :, :, hess_idx:(hess_idx+2)))
 
-    if (myrank == 0) write(*, *) 'Cliping kernels 99.9'
-    call clip_sem(kernels,0.9990)
+    if (myrank == 0) write(*, *) 'Cliping kernels 99.8'
+    call clip_sem(kernels,0.9980)
     
     do idx=1,NKERNEL_GLOB
        total_kernel(:,:,:,:,idx) = total_kernel(:,:,:,:,idx) + kernels(:,:,:,:,idx) * weight
