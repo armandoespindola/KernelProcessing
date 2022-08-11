@@ -327,8 +327,8 @@ contains
   
   subroutine model_fixed()
     integer :: i
-    do i=NPAR_GLOB,NMODEL_TOTAL-1
-       models_new(:,:,:,:,i+1) = models_fixed(:,:,:,:,i - NPAR_GLOB + 1)
+    do i=NPAR_GLOB+1,NMODEL_TOTAL
+       models_new(:,:,:,:,i) = models_fixed(:,:,:,:,i - NPAR_GLOB)
     enddo
   end subroutine model_fixed
 
@@ -675,7 +675,7 @@ contains
     ! stores new model in files
     outputfile = trim(outputdir)//'/model_gll.bp'
     if(myrank == 0) print*, "New model file: ", trim(outputfile)
-    call write_bp_file(models_new, MODEL_NAMES_GLOB, "KERNELS_GROUP", outputfile)
+    call write_bp_file(models_new, MODEL_NAMES_TOTAL , "KERNELS_GROUP", outputfile)
 
     outputfile = trim(outputdir)//'/dkernels.bp'
     if(myrank == 0) print*, "Kernel Change file: ", trim(outputfile)

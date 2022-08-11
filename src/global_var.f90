@@ -409,8 +409,8 @@ module global_var
     enddo
 
     if (NMODEL0 .gt. 0) then
-       do i=NPAR_GLOB,NMODEL_TOTAL-1
-          MODEL_NAMES_TOTAL(i+1) = trim(MODEL0_NAMES(i - NPAR_GLOB + 1))
+       do i=NPAR_GLOB+1,NMODEL_TOTAL
+          MODEL_NAMES_TOTAL(i) = trim(MODEL0_NAMES(i - NPAR_GLOB))
        enddo
     end if
 
