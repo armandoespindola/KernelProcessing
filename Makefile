@@ -28,7 +28,7 @@ all: $(BINDIR)/xsteepDescent \
 	$(BINDIR)/xsum_kernels \
 	$(BINDIR)/xsum_azi_kernels \
 	$(BINDIR)/xprecond_kernels \
-	$(BINDIR)/xprepare_vp_vs_precond \
+	$(BINDIR)/xinv_hess \
 	$(BINDIR)/xprecond_azi_kernels \
 	$(BINDIR)/xmerge_kernels \
 	$(BINDIR)/xmerge_azi_kernels \
@@ -79,7 +79,7 @@ $(OBJDIR)/precond_kernels.o: $(SRCDIR)/precond_kernels.f90 $(objects)
 $(OBJDIR)/precond_azi_kernels.o: $(SRCDIR)/precond_azi_kernels.f90 $(objects)
 	$(MPIFC) $(FCFLAGS) -c $< -o $@ $(adios_link) $(adios_inc)
 
-$(OBJDIR)/prepare_vp_vs_precond.o: $(SRCDIR)/prepare_vp_vs_preconditioner.f90 $(objects)
+$(OBJDIR)/inverse_hessian.o: $(SRCDIR)/inverse_hessian.f90 $(objects)
 	$(MPIFC) $(FCFLAGS) -c $< -o $@ $(adios_link) $(adios_inc)
 
 $(OBJDIR)/precond_vp_vs_kernels.o: $(SRCDIR)/precond_vp_vs_kernels.f90 $(OBJDIR)/precond_vp_vs_kernels_subs.o $(objects)
@@ -170,7 +170,7 @@ $(BINDIR)/xprecond_kernels: $(OBJDIR)/precond_kernels.o $(objects)
 $(BINDIR)/xprecond_azi_kernels: $(OBJDIR)/precond_azi_kernels.o $(objects)
 	$(MPIFC) $(FCFLAGS) -o $@ $^ $(adios_link) $(adios_inc)
 
-$(BINDIR)/xprepare_vp_vs_precond: $(OBJDIR)/prepare_vp_vs_precond.o $(objects)
+$(BINDIR)/xinv_hess: $(OBJDIR)/inverse_hessian.o $(objects)
 	$(MPIFC) $(FCFLAGS) -o $@ $^ $(adios_link) $(adios_inc)
 
 $(BINDIR)/xbp2binary: $(OBJDIR)/convert_adios_to_binary.o $(OBJDIR)/convert_adios_subs.o $(objects)

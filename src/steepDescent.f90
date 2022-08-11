@@ -48,10 +48,9 @@ program main
  ! real(kind=CUSTOM_REAL), dimension(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNELS):: precond
 
 
-  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable:: gradient
+  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable:: gradient,precond
   real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable:: direction
   real(kind=CUSTOM_REAL), dimension(:,:,:,:),allocatable :: jacobian
-  
   !real(kind=CUSTOM_REAL), dimension(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNELS):: direction
 
   character(len=512) :: grad_file, precond_file, direction_file,solver_file,kernel_parfile
@@ -70,6 +69,7 @@ program main
   allocate(gradient(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB),direction(NGLLX, NGLLY, NGLLZ, NSPEC,NKERNEL_GLOB))
   allocate(jacobian(NGLLX, NGLLY, NGLLZ, NSPEC))
   allocate(gtp_all(NKERNEL_GLOB),gtg_all(NKERNEL_GLOB))
+  allocate(precond(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB))
   
 
   call adios_read_init_method(ADIOS_READ_METHOD_BP, MPI_COMM_WORLD, &
@@ -81,12 +81,12 @@ program main
   if (myrank == 0) write(*, *) "|<----- Calculate Jacobian ----->|"
   call calculate_jacobian_matrix(solver_file, jacobian)
 
-  ! if (myrank == 0) write(*, *) "Reading Preconditioner: ", trim(grad_file)
-  ! call read_bp_file_real(precond_file, precond_names, precond)
+  if (myrank == 0) write(*, *) "Reading Preconditioner: ", trim(precond_file)
+  call read_bp_file_real(precond_file, HESS_NAMES_GLOB, precond)
 
   ! steep descent method with preconditioner applied
-  !direction = - precond * gradient
-  direction = -1.0 * gradient
+  direction = - precond * gradient
+  ! direction = -1.0 * gradient
 
 
   do iker=1,NKERNEL_GLOB
