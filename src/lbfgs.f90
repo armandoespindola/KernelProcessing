@@ -3,7 +3,7 @@ program main
   use adios_read_mod
   use lbfgs_subs
   use AdiosIO, only : write_bp_file, calculate_jacobian_matrix
-  use global_var, only : init_mpi,NGLLX,NGLLY,NGLLZ,NPAR_GLOB,KERNEL_NAMES_GLOB,NSPEC,init_kernel_par,NKERNEL_GLOB
+  use global_var, only : init_mpi,NGLLX,NGLLY,NGLLZ,NPAR_GLOB,KERNEL_NAMES_GLOB,NSPEC,init_kernel_par,NKERNEL_GLOB,HESS_NAMES_GLOB
   implicit none
 
   !integer, parameter :: NKERNELS = 4
@@ -15,7 +15,7 @@ program main
 
   ! Number of previous iteration used in L-BFGS
   integer :: niter
-  character(len=512) :: input_path_file, solver_file, outputfn,kernel_parfile
+  character(len=512) :: input_path_file, solver_file, outputfn,kernel_parfile,precond_file
   character(len=512), dimension(:), allocatable :: gradient_files, model_change_files
 
   ! jacobian related to the geometry of mesh
@@ -30,7 +30,7 @@ program main
   !!real(kind=CUSTOM_REAL), dimension(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNELS) :: direction
 
   ! precond kernels (default = 1.0, no preconditioner applied)
-  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable :: precond
+  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable :: precond,diagH
   ! most recent gradient (this iteration's gradient)
   real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable :: gradient
   ! this iterations' search direction
@@ -46,14 +46,13 @@ program main
   call init_mpi()
 
   if(myrank == 0) print*, "|<---- Get System Args ---->|"
-  call get_sys_args(kernel_parfile,input_path_file, solver_file, outputfn)
+  call get_sys_args(kernel_parfile,input_path_file, solver_file,precond_file, outputfn)
 
   call init_kernel_par(kernel_parfile)
 
   allocate(precond(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNEL_GLOB),gradient(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNEL_GLOB), &
-       direction(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNEL_GLOB))
-
-  precond=1.0
+       direction(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNEL_GLOB), &
+       diagH(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNEL_GLOB))
 
 
   if(myrank == 0) print*, "|<---- Parse Input Path File ---->|"
@@ -69,6 +68,22 @@ program main
   call calculate_jacobian_matrix(solver_file, jacobian)
   !jacobian = 1.0d0
 
+  if (trim(precond_file) == '') then
+     precond = 1.0
+     if (myrank == 0) write(*, *) "|<----- Preconditioner H=I ----->| "
+  else
+     if (myrank == 0) write(*, *) "|<----- Reading Preconditioner ----->| ", &
+          trim(precond_file)
+     call read_bp_file_real(precond_file, HESS_NAMES_GLOB, precond)
+  endif
+
+
+  ! if(myrank == 0) print*, "|<---- diag(H) SR1 ---->|"
+  ! call calculate_diag_SR1(niter, NKERNEL_GLOB, jacobian,precond, yks, sks, diagH)
+
+  call write_bp_file(diagH, HESS_NAMES_GLOB, "KERNELS_GROUP", 'H_sr1.bp')
+  if(myrank == 0) print*, "Diag(H) SR1 saved: ",'H_sr1.bp'
+  
   if(myrank == 0) print*, "|<---- L-BFGS Direction ---->|"
   call calculate_LBFGS_direction(niter, NKERNEL_GLOB, jacobian, gradient, precond, yks, sks, direction)
 

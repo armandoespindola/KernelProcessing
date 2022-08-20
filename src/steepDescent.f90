@@ -81,7 +81,7 @@ program main
   if (myrank == 0) write(*, *) "|<----- Calculate Jacobian ----->|"
   call calculate_jacobian_matrix(solver_file, jacobian)
 
-  if (myrank == 0) write(*, *) "Reading Preconditioner: ", trim(precond_file)
+  if (myrank == 0) write(*, *) "|<----- Reading Preconditioner ----->| ", trim(precond_file)
   call read_bp_file_real(precond_file, HESS_NAMES_GLOB, precond)
 
   ! steep descent method with preconditioner applied

@@ -10,8 +10,9 @@ module lbfgs_subs
 
   contains
 
-  subroutine get_sys_args(kernel_parfile,input_path_file, solver_file, outputfn)
+  subroutine get_sys_args(kernel_parfile,input_path_file, solver_file,precond_file, outputfn)
     character(len=*), intent(inout) :: input_path_file, solver_file, outputfn,kernel_parfile
+    character(len=*), intent(inout) :: precond_file
 
     if(myrank == 0) print*, '|<============= Get System Args =============>|'
 
@@ -19,16 +20,19 @@ module lbfgs_subs
     call getarg(2, input_path_file)
     call getarg(3, solver_file)
     call getarg(4, outputfn)
+    call getarg(5, precond_file)
 
     if(trim(input_path_file) == '' .or. trim(solver_file) == '' &
         .or. trim(outputfn) == '' .or. trim(kernel_parfile) == '') then
-      call exit_mpi("Usage: ./xlbfgs input_path_file solver_file outputfn")
+      call exit_mpi("Usage: ./xlbfgs input_path_file solver_file outputfn H0_file[optional]")
     endif
 
     if(myrank == 0) then
       print*, "Input path file: ", trim(input_path_file)
-      print*, "solver file:", trim(solver_file)
+      print*, "Solver file:", trim(solver_file)
+      print*, "Precond file: ", trim(precond_file)
       print*, "Output file: ", trim(outputfn)
+      
     endif
   end subroutine get_sys_args
 
@@ -173,9 +177,11 @@ module lbfgs_subs
 
     ! Precondition 1
     call Parallel_ComputeL2normSquare(yks(:, :, :, :, :, niter), nkernels, &
-                                     jacobian, norm_y)
+         jacobian, norm_y)
+
+    
     rhok = 1.0 / (pk_store(niter) * norm_y)
-    direction = rhok * direction
+    direction = rhok * direction * precond
 
     ! Precondition 2
     !direction = precond * direction
@@ -195,6 +201,93 @@ module lbfgs_subs
     direction = -1.0 * direction
 
   end subroutine calculate_LBFGS_direction
+
+
+
+    subroutine calculate_diag_SR1(niter, nkernels, jacobian, &
+                                       precond, yks, sks,Hdiag)
+    integer, intent(in) :: niter
+    integer, intent(in) :: nkernels
+    real(kind=CUSTOM_REAL), dimension(:, :, :, :), intent(in) :: jacobian
+    real(kind=CUSTOM_REAL), dimension(:, :, :, :, :), intent(in) :: precond
+    real(kind=CUSTOM_REAL), dimension(:, :, :, :, :, :), intent(in) :: yks, sks
+    real(kind=CUSTOM_REAL), dimension(:, :, :, :, :), intent(inout) :: Hdiag
+
+    integer :: i
+    real(kind=CUSTOM_REAL) :: tmp, tmp2,norm_sk,norm_yk,norm_Bs,norm_Hy,norm_y,norm_sk_yk
+    real(kind=CUSTOM_REAL) :: testH,testB
+
+    if(myrank == 0) print*, '|<============= Calculating diag(H) SR1 Direction =============>|'
+    call Parallel_ComputeInnerProduct(sks(:, :, :, :, :, niter), &
+                                        yks(:, :, :, :, :, niter), &
+                                        nkernels, jacobian, norm_sk_yk)
+    
+    call Parallel_ComputeL2normSquare(yks(:, :, :, :, :, niter), nkernels, &
+         jacobian, norm_y)
+    
+    Hdiag = precond * norm_sk_yk / norm_y
+
+    if (myrank == 0) write(*,'(A,ES18.8)') " [ Multiple of Beta *  I ] Beta = ", &
+         norm_sk_yk / norm_y
+
+    ! first round
+    do i=1, niter
+
+       call Parallel_ComputeInnerProduct(yks(:, :, :, :, :, i), &
+                                   sks(:, :, :, :, :, i) - yks(:, :, :, :, :, i) * Hdiag, &
+                                   nkernels, jacobian, tmp)
+
+       call Parallel_ComputeInnerProduct(sks(:, :, :, :, :, i), &
+            yks(:, :, :, :, :, i) - sks(:, :, :, :, :, i) * (1.0 / Hdiag), &
+            nkernels, jacobian, tmp2)
+
+
+       call Parallel_ComputeL2normSquare(yks(:, :, :, :, :, i), nkernels, &
+            jacobian, norm_yk)
+
+       call Parallel_ComputeInnerProduct(sks(:, :, :, :, :, i), &
+                                        yks(:, :, :, :, :, i), &
+                                        nkernels, jacobian, norm_sk_yk)
+
+
+       call Parallel_ComputeL2normSquare(sks(:, :, :, :, :, i), nkernels, &
+            jacobian, norm_sk)
+
+
+       call Parallel_ComputeL2normSquare(yks(:, :, :, :, :, i) - sks(:, :, :, :, :, i) & 
+            * (1.0 / Hdiag), nkernels, &
+            jacobian, norm_Bs)
+       
+       call Parallel_ComputeL2normSquare(sks(:, :, :, :, :, i) - yks(:, :, :, :, :, i) &
+            * Hdiag, nkernels, &
+            jacobian, norm_Hy)
+
+
+       testH = sqrt(norm_Hy * norm_yk) * 1.0E-8
+       testB = sqrt(norm_Bs * norm_sk) * 1.0E-8
+
+
+       if(myrank == 0) write(*, '(A, ES18.8, ES18.8, ES18.8)') &
+            "Values [yTs, y^2, gamma] : ",norm_sk_yk,norm_yk,norm_sk_yk/norm_yk
+       
+       if(myrank == 0) write(*, '(A, I2, A, i2, A, ES18.8, ES18.8, ES18.8, A, ES18.8, ES18.8)') &
+            "First Loop[iter=", i, "/", niter, "] [H] r(k) = ", abs(tmp),tmp,testH, &
+            " [---] [B] r(k) =",abs(tmp2),testB 
+
+       if (abs(tmp) > testH) then
+          Hdiag = Hdiag + (sks(:, :, :, :, :, i) - yks(:, :, :, :, :, i) * Hdiag) * &
+               (sks(:, :, :, :, :, i) - yks(:, :, :, :, :, i) * Hdiag) * (1.0 / tmp)
+       end if
+       
+
+       ! Hdiag = Hdiag + (sks(:, :, :, :, :, i) * yks(:, :, :, :, :, i)) / &
+       ! (yks(:, :, :, :, :, i)  * yks(:, :, :, :, :, i))
+       
+
+    enddo
+    
+  end subroutine calculate_diag_SR1
+
 
 
   subroutine check_status(grad,dir,jacobian,nkernels)

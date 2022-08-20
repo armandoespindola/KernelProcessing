@@ -8,7 +8,7 @@
 !   1) L-BFGS loop path file, including the past gradients and module changes
 !   2) solver file, to caculate the jacobian
 !   3) precondition bp file: the precondition kernels are inverse
-!         Hessian (approximate). You need to inverse it.
+!         Hessian (approximate). You need to inverse of it.
 ! -----------------------------------------------------------------------
 
 
