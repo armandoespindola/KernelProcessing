@@ -102,6 +102,21 @@ module preconditioner_subs
    if (myrank == 0) write(*,*) "Normalize Hessian"
    call max_all_all_cr(maxval(invHess(:, :, :, :,:)), maxh_all)
    invHess = invHess / maxh_all
+   
+   do ik = 1,nhess
+      call max_all_all_cr(maxval(invHess(:, :, :, :,ik)), maxh_all)
+      if (maxh_all < threshold**2) then
+         invHess(:, :, :, :,ik) = invHess(:, :, :, :,ik) * (threshold**2) / (maxh_all)
+      endif
+      call max_all_all_cr(maxval(invHess(:, :, :, :,ik)), maxh_all)
+      call min_all_all_cr(minval(invHess(:, :, :, :,ik)), minh_all)
+      if (myrank == 0) then
+         write(*, '(A, ES12.2, 5X, ES12.2, 5X, A, ES12.2)') &
+              trim(invNames(ik)), maxh_all, minh_all, &
+              " || Condition Number:", maxh_all / minh_all
+      endif
+   enddo
+
    call max_all_all_cr(maxval(invHess(:, :, :, :,:)), maxh_all)
    call min_all_all_cr(minval(invHess(:, :, :, :,:)), minh_all)
 
