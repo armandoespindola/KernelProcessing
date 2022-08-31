@@ -334,10 +334,10 @@ module lbfgs_subs
     
 
 
-    max_direction = maxval(dir)
+    max_direction = maxval(abs(dir))
     call max_all_all_cr(max_direction,max_direction_all)
 
-    min_direction = minval(dir)
+    min_direction = minval(abs(dir))
     call min_all_all_cr(min_direction,min_direction_all)
 
     if(myrank == 0) print*, '|<============= Check Status LBFGS =============>|'
@@ -371,6 +371,12 @@ module lbfgs_subs
           write(99,*) gd
           close(99)
        end if
+
+       max_direction = maxval(abs(dir))
+       call max_all_all_cr(max_direction,max_direction_all)
+
+       min_direction = minval(abs(dir))
+       call min_all_all_cr(min_direction,min_direction_all)
     end if
 
 

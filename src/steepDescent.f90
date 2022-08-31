@@ -6,21 +6,20 @@ subroutine get_sys_args(kernel_parfile,grad_file, precond_file, direction_file,s
 
   call getarg(1, kernel_parfile)
   call getarg(2, grad_file)
-  call getarg(3, precond_file)
-  call getarg(4, solver_file)
-  call getarg(5, direction_file)
-  
+  call getarg(3, solver_file)
+  call getarg(4, direction_file)
+  call getarg(5, precond_file)
 
-  if(trim(grad_file) == '' .or. trim(precond_file) == '' .or. trim(direction_file) == '' &
+  if(trim(grad_file) == '' .or. trim(direction_file) == '' &
        .or. trim(kernel_parfile) == '' .or. trim(solver_file) == '') then
-        call exit_mpi('Usage: xcg_direction gradient_file precond_file direction_file')
+        call exit_mpi('Usage: xsd_direction gradient_file precond_file direction_file')
   endif
 
   if(myrank == 0) then
     write(*, *) "Gradient file   (input): ", trim(grad_file)
-    write(*, *) "Precond file    (input): ", trim(precond_file)
     write(*, *) "Solver file  (input): ", trim(solver_file)
     write(*, *) "Direction file (output): ", trim(direction_file)
+    write(*, *) "Precond file    (input): ", trim(precond_file)
   endif
 
 end subroutine get_sys_args
@@ -81,12 +80,15 @@ program main
   if (myrank == 0) write(*, *) "|<----- Calculate Jacobian ----->|"
   call calculate_jacobian_matrix(solver_file, jacobian)
 
-  if (myrank == 0) write(*, *) "|<----- Reading Preconditioner ----->| ", trim(precond_file)
-  call read_bp_file_real(precond_file, HESS_NAMES_GLOB, precond)
-
-  ! steep descent method with preconditioner applied
-  direction = - precond * gradient
-  ! direction = -1.0 * gradient
+  if (.not. precond_file == '') then
+     if (myrank == 0) write(*, *) "|<----- Reading Preconditioner ----->| ", trim(precond_file)
+     call read_bp_file_real(precond_file, HESS_NAMES_GLOB, precond)
+     ! steep descent method with preconditioner applied
+     direction = - precond * gradient
+  else
+          if (myrank == 0) write(*, *) "|<----- Preconditioner = I ----->| "
+     direction = -1.0 * gradient
+  endif
 
 
   do iker=1,NKERNEL_GLOB

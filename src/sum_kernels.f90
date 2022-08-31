@@ -262,12 +262,13 @@ program sum_kernels
     if ((ATTENUATION_FLAG) .and. (len(trim(eventfile_qmu)) .gt. 0)) then
        kernel_file_qmu = kernel_list_qmu(ievent)
        weight = weight_list_qmu(ievent)
-       if (myrank==0) write(*,*) 'Reading in kernel for [', ievent, &
+       if (myrank==0) write(*,*) 'Reading in kernel (Attenuation) for [', ievent, &
               "/", nevent, "]: ", trim(kernel_file_qmu), " | weight: ", weight
        call read_bp_file_real(kernel_file_qmu,KERNEL_NAMES_GLOB(KQMU_IDX),kernels(:,:,:,:,KQMU_IDX))
        
     endif
-    
+
+    call MPI_Barrier(MPI_COMM_WORLD, ier)
     ! only keep the abs value of the hess kernel
     !kernels(:, :, :, :, hess_idx) = abs(kernels(:, :, :, :, hess_idx))
     !kernels(:, :, :, :, hess_idx:(hess_idx+2)) = abs(kernels(:, :, :, :, hess_idx:(hess_idx+2)))
