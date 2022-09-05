@@ -170,13 +170,15 @@ program main
   character(len=500) :: direction_1_file ! outputfn
 
   real(kind=CUSTOM_REAL):: gtp,gtg,gtp_old,gtg_old,gtp_all_tmp,gtg_all_tmp
+  real(kind=CUSTOM_REAL):: max_direction,min_direction
   real(kind=CUSTOM_REAL):: max_direction,max_direction_all,min_direction,min_direction_all
   real(kind=CUSTOM_REAL),dimension(:),allocatable::gtp_all,gtg_all
 
-  integer:: ier
+  integer:: ier,iker
 
   call init_mpi()
 
+  if(myrank == 0) print*, "|<---- Get System Args ---->|"
   call get_sys_args(kernel_parfile,grad_0_file, grad_1_file, &
        direction_0_file, direction_1_file, solver_file)
   
@@ -203,6 +205,19 @@ program main
 
   if (myrank == 0) write(*, *) "|<----- Compute Search Direction ----->|"
   call compute_search_direction(gradient_0, gradient_1, direction_0, jacobian, direction_1)
+
+
+  if(myrank == 0) print*, "|<---- NLCG Direction (Stats) ---->|"
+  do iker = 1,NKERNEL_GLOB
+     call max_all_all_cr(maxval(direction_1(:, :, :, :,iker)), max_direction)
+     call min_all_all_cr(minval(direction_1(:, :, :, :,iker)), min_direction)
+     if (myrank == 0) then
+        write(*,*) " Gradient Stats (After Preconditioner)"
+        write(*, '(A, ES12.2, 5X, ES12.2)') &                 
+             trim(KERNEL_NAMES_GLOB(iker))//"(max,min)", & 
+             max_direction, min_direction                
+     endif
+  enddo
 
   if (myrank == 0) write(*, *) "|<----- Start Writing ----->|"
   call write_bp_file(direction_1, KERNEL_NAMES_GLOB, "KERNEL_GROUPS", direction_1_file)
