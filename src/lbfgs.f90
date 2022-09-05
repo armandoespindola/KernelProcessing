@@ -3,7 +3,7 @@ program main
   use adios_read_mod
   use lbfgs_subs
   use AdiosIO, only : write_bp_file, calculate_jacobian_matrix
-  use global_var, only : init_mpi,NGLLX,NGLLY,NGLLZ,NPAR_GLOB,KERNEL_NAMES_GLOB,NSPEC,init_kernel_par,NKERNEL_GLOB,HESS_NAMES_GLOB
+  use global_var, only : init_mpi,NGLLX,NGLLY,NGLLZ,NPAR_GLOB,KERNEL_NAMES_GLOB,NSPEC,init_kernel_par,NKERNEL_GLOB,HESS_NAMES_GLOB,max_all_all_cr,min_all_all_cr
   implicit none
 
   !integer, parameter :: NKERNELS = 4
@@ -40,8 +40,9 @@ program main
   !     sk = x(k+1) - x(k), which is the model change
   !     yk = g(k+1) - g(k), which is the gradient change
   real(kind=CUSTOM_REAL), dimension(:, :, :, :, :, :), allocatable :: yks, sks
+  real(kind=CUSTOM_REAL) :: max_direction,min_direction
 
-  integer :: ier
+  integer :: ier,iker
 
   call init_mpi()
 
@@ -89,6 +90,18 @@ program main
 
   if(myrank == 0) print*, "|<---- L-BFGS Direction (Check Status) ---->|"
   call check_status(gradient,direction,jacobian,NKERNEL_GLOB)
+
+  if(myrank == 0) print*, "|<---- L-BFGS Direction (Stats) ---->|"
+  do iker = 1,NKERNEL_GLOB
+     call max_all_all_cr(maxval(direction(:, :, :, :,iker)), max_direction)
+     call min_all_all_cr(minval(direction(:, :, :, :,iker)), min_direction)
+     if (myrank == 0) then
+        write(*,*) " Gradient Stats (After Preconditioner)"
+        write(*, '(A, ES12.2, 5X, ES12.2)') &                 
+             trim(KERNEL_NAMES_GLOB(iker))//"(max,min)", & 
+             max_direction, min_direction                
+     endif
+  enddo
 
   call write_bp_file(direction, KERNEL_NAMES_GLOB, "KERNELS_GROUP", outputfn)
   if(myrank == 0) print*, "LBFGS direction saved: ", trim(outputfn)

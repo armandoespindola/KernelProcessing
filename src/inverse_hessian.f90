@@ -12,7 +12,8 @@
 module preconditioner_subs
   use mpi
   use global_var, only : max_all_all_cr, min_all_all_cr, CUSTOM_REAL, exit_mpi, &
-                     myrank
+       myrank
+  use global_var,only : ATTENUATION_FLAG,KQMU_IDX
   implicit none
 
   contains
@@ -55,7 +56,7 @@ module preconditioner_subs
     character(len=*), dimension(:),intent(inout) :: invNames
     real(CUSTOM_REAL), intent(in) :: threshold
 
-    real(kind=CUSTOM_REAL):: maxh_all, minh_all, dampening
+    real(kind=CUSTOM_REAL):: maxh_all, minh_all, dampening,ratio
     integer :: ik
     integer :: nhess
 
@@ -102,11 +103,30 @@ module preconditioner_subs
    if (myrank == 0) write(*,*) "Normalize Hessian"
    call max_all_all_cr(maxval(invHess(:, :, :, :,:)), maxh_all)
    invHess = invHess / maxh_all
+   call min_all_all_cr(minval(invHess(:, :, :, :,:)), minh_all)
+   ratio = 1.0 + minh_all
    
+   ! do ik = 1,nhess
+   !    call max_all_all_cr(maxval(invHess(:, :, :, :,ik)), maxh_all)
+   !    if (maxh_all < threshold**2) then
+   !       invHess(:, :, :, :,ik) = invHess(:, :, :, :,ik) * (threshold**2) / (maxh_all)
+   !    endif
+   !    call max_all_all_cr(maxval(invHess(:, :, :, :,ik)), maxh_all)
+   !    call min_all_all_cr(minval(invHess(:, :, :, :,ik)), minh_all)
+   !    if (myrank == 0) then
+   !       write(*, '(A, ES12.2, 5X, ES12.2, 5X, A, ES12.2)') &
+   !            trim(invNames(ik)), maxh_all, minh_all, &
+   !            " || Condition Number:", maxh_all / minh_all
+   !    endif
+   ! enddo
+
    do ik = 1,nhess
-      call max_all_all_cr(maxval(invHess(:, :, :, :,ik)), maxh_all)
-      if (maxh_all < threshold**2) then
-         invHess(:, :, :, :,ik) = invHess(:, :, :, :,ik) * (threshold**2) / (maxh_all)
+      if ((ik .ne. KQMU_IDX) .and. (ATTENUATION_FLAG)) then
+         call max_all_all_cr(maxval(invHess(:, :, :, :,ik)), maxh_all)
+         call min_all_all_cr(minval(invHess(:, :, :, :,ik)), minh_all)
+         if ((ratio / (maxh_all + minh_all)) > 1000) then
+            invHess(:, :, :, :,ik) = invHess(:, :, :, :,ik) * ratio * 1.0e-3 / (maxh_all + minh_all)
+         endif
       endif
       call max_all_all_cr(maxval(invHess(:, :, :, :,ik)), maxh_all)
       call min_all_all_cr(minval(invHess(:, :, :, :,ik)), minh_all)
@@ -116,7 +136,7 @@ module preconditioner_subs
               " || Condition Number:", maxh_all / minh_all
       endif
    enddo
-
+   
    call max_all_all_cr(maxval(invHess(:, :, :, :,:)), maxh_all)
    call min_all_all_cr(minval(invHess(:, :, :, :,:)), minh_all)
 

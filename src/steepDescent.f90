@@ -105,6 +105,18 @@ program main
   gtg_old = sum(gtg_all)
 
 
+  do iker = 1,NKERNEL_GLOB
+     call max_all_all_cr(maxval(direction(:, :, :, :,iker)), max_direction)
+     call min_all_all_cr(minval(direction(:, :, :, :,iker)), min_direction)
+     if (myrank == 0) then                                                 
+        write(*,*) " Gradient Stats (After Preconditioner)"                
+        write(*, '(A, ES12.2, 5X, ES12.2)') &                              
+             trim(KERNEL_NAMES_GLOB(iker))//"(max,min)", &                 
+             max_direction, min_direction                                  
+     endif
+  enddo
+
+
   max_direction = maxval(abs(direction))
   call max_all_all_cr(max_direction,max_direction_all)
 
