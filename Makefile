@@ -43,7 +43,8 @@ all: $(BINDIR)/xsteepDescent \
 	$(BINDIR)/xcompute_vp_vs_hess \
 	$(BINDIR)/xrandom_probe_lbfgs \
 	$(BINDIR)/xperturb_model \
-	$(BINDIR)/xupdate_model_par
+	$(BINDIR)/xupdate_model_par \
+	$(BINDIR)/xmerge_adios_files
 
 
 # ###################
@@ -80,6 +81,9 @@ $(OBJDIR)/precond_azi_kernels.o: $(SRCDIR)/precond_azi_kernels.f90 $(objects)
 	$(MPIFC) $(FCFLAGS) -c $< -o $@ $(adios_link) $(adios_inc)
 
 $(OBJDIR)/inverse_hessian.o: $(SRCDIR)/inverse_hessian.f90 $(objects)
+	$(MPIFC) $(FCFLAGS) -c $< -o $@ $(adios_link) $(adios_inc)
+
+$(OBJDIR)/merge_adios_files.o: $(SRCDIR)/merge_adios_files.f90 $(objects)
 	$(MPIFC) $(FCFLAGS) -c $< -o $@ $(adios_link) $(adios_inc)
 
 $(OBJDIR)/precond_vp_vs_kernels.o: $(SRCDIR)/precond_vp_vs_kernels.f90 $(OBJDIR)/precond_vp_vs_kernels_subs.o $(objects)
@@ -171,6 +175,9 @@ $(BINDIR)/xprecond_azi_kernels: $(OBJDIR)/precond_azi_kernels.o $(objects)
 	$(MPIFC) $(FCFLAGS) -o $@ $^ $(adios_link) $(adios_inc)
 
 $(BINDIR)/xinv_hess: $(OBJDIR)/inverse_hessian.o $(objects)
+	$(MPIFC) $(FCFLAGS) -o $@ $^ $(adios_link) $(adios_inc)
+
+$(BINDIR)/xmerge_adios_files: $(OBJDIR)/merge_adios_files.o $(objects)
 	$(MPIFC) $(FCFLAGS) -o $@ $^ $(adios_link) $(adios_inc)
 
 $(BINDIR)/xbp2binary: $(OBJDIR)/convert_adios_to_binary.o $(OBJDIR)/convert_adios_subs.o $(objects)
