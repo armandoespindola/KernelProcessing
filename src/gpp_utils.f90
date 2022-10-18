@@ -24,7 +24,7 @@ module gpp_utils
   ! Kernel array
 !  real(kind=CUSTOM_REAL), dimension(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_GLOB) :: kernels
 
-  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable :: kernels
+!  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable :: kernels
   
   ! model array
   integer, dimension(NGLLX, NGLLY, NGLLZ, NSPEC) :: ibool
@@ -67,9 +67,10 @@ module gpp_utils
 
   end subroutine convert_to_xyz
 
-  subroutine add_gaussian_perturb_sphere(r, lat, lon, sigma0, perturb_idx)
+  subroutine add_gaussian_perturb_sphere(r, lat, lon, sigma0, perturb_idx,perturbs)
     ! version by Ebru Bozdag
     ! Pure spherical Gaussian perturbation
+    real(kind=CUSTOM_REAL),dimension(:,:,:,:,:),intent(inout) :: perturbs
     real(kind=CUSTOM_REAL), intent(in) :: r, lat, lon, sigma0
     integer, intent(in) :: perturb_idx
 
@@ -106,24 +107,25 @@ module gpp_utils
             ! negative search direction --> slow anomaly
             gauss = -exp( - (dist/sigma) **2 )
 
-            kernels(i,j,k,ispec,perturb_idx) = kernels(i,j,k,ispec,perturb_idx) + gauss
+            perturbs(i,j,k,ispec,perturb_idx) = perturbs(i,j,k,ispec,perturb_idx) + gauss
           end do
         end do
       end do
     end do
 
     vmax = 0.0
-    call max_all_all_cr(maxval(kernels(:,:,:,:,perturb_idx)), vmax)
+    call max_all_all_cr(maxval(perturbs(:,:,:,:,perturb_idx)), vmax)
     vmin = 0.0
-    call min_all_all_cr(minval(kernels(:,:,:,:,perturb_idx)), vmin)
+    call min_all_all_cr(minval(perturbs(:,:,:,:,perturb_idx)), vmin)
     if(myrank == 0) then
-      write(*, '(A, F10.2, A, F10.2)') "Kernel min and max value: ", vmin, ",", vmax
+      write(*, '(A, F10.2, A, F10.2)') "Perturb min and max value: ", vmin, ",", vmax
     endif
   end subroutine add_gaussian_perturb_sphere
 
-  subroutine add_gaussian_perturb_elliptic(r, lat, lon, sigmah0, sigmav0, perturb_idx)
+  subroutine add_gaussian_perturb_elliptic(r, lat, lon, sigmah0, sigmav0, perturb_idx,perturbs)
     ! Version By Wenjie
     ! Create elliptical
+    real(kind=CUSTOM_REAL),dimension(:,:,:,:,:),intent(inout) :: perturbs
     real(kind=CUSTOM_REAL), intent(in) :: r, lat, lon, sigmah0, sigmav0
     integer, intent(in) :: perturb_idx
 
@@ -180,94 +182,94 @@ module gpp_utils
             ! negative search direction --> slow anomaly
             gauss = -exp(- (disth / sigmah) ** 2 - (distv / sigmav) ** 2)
 
-            kernels(i,j,k,ispec,perturb_idx) = kernels(i,j,k,ispec,perturb_idx) + gauss
+            perturbs(i,j,k,ispec,perturb_idx) = perturbs(i,j,k,ispec,perturb_idx) + gauss
           end do
         end do
       end do
     end do
 
     vmax = 0.0
-    call max_all_all_cr(maxval(kernels(:,:,:,:,perturb_idx)), vmax)
+    call max_all_all_cr(maxval(perturbs(:,:,:,:,perturb_idx)), vmax)
     vmin = 0.0
-    call min_all_all_cr(minval(kernels(:,:,:,:,perturb_idx)), vmin)
+    call min_all_all_cr(minval(perturbs(:,:,:,:,perturb_idx)), vmin)
     if(myrank == 0) then
-      write(*, '(A, ES18.8, A, ES18.8)') "Kernel min and max value: ", vmin, ",", vmax
+      write(*, '(A, ES18.8, A, ES18.8)') "Perturb min and max value: ", vmin, ",", vmax
     endif
   end subroutine add_gaussian_perturb_elliptic
 
-  subroutine add_gaussian_perturb_hv(dep, lat, lon, perturb_sign, sigmah0, sigmav0, perturb_idx)
-    ! Version by Hejun
-    ! assign different horizontal and vertical length
-    ! This one should be used with careful check because the shape of
-    ! the preturbations will be doom-liked sphere.(not sysmetircal with
-    ! regarding to the top and bottom)
-    real(kind=CUSTOM_REAL), intent(in) :: dep, lat, lon, perturb_sign, sigmah0, sigmav0
-    integer, intent(in) :: perturb_idx
+  ! subroutine add_gaussian_perturb_hv(dep, lat, lon, perturb_sign, sigmah0, sigmav0, perturb_idx)
+  !   ! Version by Hejun
+  !   ! assign different horizontal and vertical length
+  !   ! This one should be used with careful check because the shape of
+  !   ! the preturbations will be doom-liked sphere.(not sysmetircal with
+  !   ! regarding to the top and bottom)
+  !   real(kind=CUSTOM_REAL), intent(in) :: dep, lat, lon, perturb_sign, sigmah0, sigmav0
+  !   integer, intent(in) :: perturb_idx
 
-    real(kind=CUSTOM_REAL) :: xcent, ycent, zcent, sigmah, sigmav
-    integer :: ispec, i, j, k, iglob
-    real(kind=CUSTOM_REAL) :: gauss, dist, distv, disth, r0, r1, ratio, theta
-    real(kind=CUSTOM_REAL) :: vmax, vmin
+  !   real(kind=CUSTOM_REAL) :: xcent, ycent, zcent, sigmah, sigmav
+  !   integer :: ispec, i, j, k, iglob
+  !   real(kind=CUSTOM_REAL) :: gauss, dist, distv, disth, r0, r1, ratio, theta
+  !   real(kind=CUSTOM_REAL) :: vmax, vmin
 
-    if (myrank == 0) then
-      write(*, '(A)') "|--> Gaussian HV"
-      write(*, '(A, F8.2, A, F8.2, A, F8.2, A, F8.2, A, F8.2, A)') &
-        "|    Depth=", dep, "km, lat=", lat, ", lon=", lon, &
-        ", sigmav0=", sigmav0, "km, sigmah0=", sigmah0, "km"
-    endif
+  !   if (myrank == 0) then
+  !     write(*, '(A)') "|--> Gaussian HV"
+  !     write(*, '(A, F8.2, A, F8.2, A, F8.2, A, F8.2, A, F8.2, A)') &
+  !       "|    Depth=", dep, "km, lat=", lat, ", lon=", lon, &
+  !       ", sigmav0=", sigmav0, "km, sigmah0=", sigmah0, "km"
+  !   endif
 
-    ! convert sigma from km to xyz coordinate
-    sigmah = REAL(sigmah0 / R_EARTH_KM, CUSTOM_REAL)
-    sigmav = REAL(sigmav0 / R_EARTH_KM, CUSTOM_REAL)
+  !   ! convert sigma from km to xyz coordinate
+  !   sigmah = REAL(sigmah0 / R_EARTH_KM, CUSTOM_REAL)
+  !   sigmav = REAL(sigmav0 / R_EARTH_KM, CUSTOM_REAL)
 
-    call convert_to_xyz(dep, lat, lon, xcent, ycent, zcent)
-    if (myrank == 0) then
-      write(*, '(A, ES18.3, A, ES18.3, A, ES18.3)') &
-        "|    xyz: ", xcent, ",", ycent, ",", zcent
-      write(*, '(A, ES18.3, A, ES18.3)') &
-        '|    sigmah:', sigmah, ", sigmav:", sigmav
-      write(*, '(A, ES18.3, A, ES18.3)') &
-        '|    R_EARTH=', R_EARTH_KM, "km, DEGREE_TO_RADIANS=", DEGREES_TO_RADIANS
-    endif
+  !   call convert_to_xyz(dep, lat, lon, xcent, ycent, zcent)
+  !   if (myrank == 0) then
+  !     write(*, '(A, ES18.3, A, ES18.3, A, ES18.3)') &
+  !       "|    xyz: ", xcent, ",", ycent, ",", zcent
+  !     write(*, '(A, ES18.3, A, ES18.3)') &
+  !       '|    sigmah:', sigmah, ", sigmav:", sigmav
+  !     write(*, '(A, ES18.3, A, ES18.3)') &
+  !       '|    R_EARTH=', R_EARTH_KM, "km, DEGREE_TO_RADIANS=", DEGREES_TO_RADIANS
+  !   endif
 
-    r0=sqrt( xcent * xcent + ycent * ycent + zcent * zcent)
-    do ispec = 1,NSPEC
-      do k = 1,NGLLZ
-        do j = 1,NGLLY
-          do i = 1,NGLLX
-            iglob=ibool(i,j,k,ispec)
-            dist = sqrt( (x_glob(iglob) - xcent) ** 2 + (y_glob(iglob) - ycent) ** 2 + &
-                         (z_glob(iglob) - zcent) ** 2 )
+  !   r0=sqrt( xcent * xcent + ycent * ycent + zcent * zcent)
+  !   do ispec = 1,NSPEC
+  !     do k = 1,NGLLZ
+  !       do j = 1,NGLLY
+  !         do i = 1,NGLLX
+  !           iglob=ibool(i,j,k,ispec)
+  !           dist = sqrt( (x_glob(iglob) - xcent) ** 2 + (y_glob(iglob) - ycent) ** 2 + &
+  !                        (z_glob(iglob) - zcent) ** 2 )
 
-            r1=sqrt( x_glob(iglob) * x_glob(iglob) + y_glob(iglob) * y_glob(iglob) &
-                    + z_glob(iglob) * z_glob(iglob) )
-            distv = r1 - r0
+  !           r1=sqrt( x_glob(iglob) * x_glob(iglob) + y_glob(iglob) * y_glob(iglob) &
+  !                   + z_glob(iglob) * z_glob(iglob) )
+  !           distv = r1 - r0
 
-            ratio = ( x_glob(iglob) * xcent + y_glob(iglob) * ycent + z_glob(iglob) * zcent ) &
-                    / (r0*r1)
-            ! checks boundaries of ratio (due to numerical inaccuracies)
-            if( ratio > 1.0_CUSTOM_REAL ) ratio = 1.0_CUSTOM_REAL
-            if( ratio < -1.0_CUSTOM_REAL ) ratio = -1.0_CUSTOM_REAL
+  !           ratio = ( x_glob(iglob) * xcent + y_glob(iglob) * ycent + z_glob(iglob) * zcent ) &
+  !                   / (r0*r1)
+  !           ! checks boundaries of ratio (due to numerical inaccuracies)
+  !           if( ratio > 1.0_CUSTOM_REAL ) ratio = 1.0_CUSTOM_REAL
+  !           if( ratio < -1.0_CUSTOM_REAL ) ratio = -1.0_CUSTOM_REAL
 
-            theta = acos( ratio )
-            disth = r1 * theta
+  !           theta = acos( ratio )
+  !           disth = r1 * theta
 
-            gauss = perturb_sign * exp(-(disth / sigmah) ** 2 - (distv / sigmav) ** 2)
+  !           gauss = perturb_sign * exp(-(disth / sigmah) ** 2 - (distv / sigmav) ** 2)
 
-            kernels(i,j,k,ispec,perturb_idx) = kernels(i,j,k,ispec,perturb_idx) + gauss
-          end do
-        end do
-      end do
-    end do
+  !           kernels(i,j,k,ispec,perturb_idx) = kernels(i,j,k,ispec,perturb_idx) + gauss
+  !         end do
+  !       end do
+  !     end do
+  !   end do
 
-    vmax = 0.0
-    call max_all_all_cr(maxval(kernels(:,:,:,:,perturb_idx)), vmax)
-    vmin = 0.0
-    call min_all_all_cr(minval(kernels(:,:,:,:,perturb_idx)), vmin)
-    if(myrank == 0) then
-      write(*, '(A, ES18.8, A, ES18.8)') "Kernel min and max value: ", vmin, ",", vmax
-    endif
-  end subroutine add_gaussian_perturb_hv
+  !   vmax = 0.0
+  !   call max_all_all_cr(maxval(kernels(:,:,:,:,perturb_idx)), vmax)
+  !   vmin = 0.0
+  !   call min_all_all_cr(minval(kernels(:,:,:,:,perturb_idx)), vmin)
+  !   if(myrank == 0) then
+  !     write(*, '(A, ES18.8, A, ES18.8)') "Kernel min and max value: ", vmin, ",", vmax
+  !   endif
+  ! end subroutine add_gaussian_perturb_hv
 
   subroutine read_model_file(input_solver_file)
     character(len=*), intent(in) :: input_solver_file
@@ -281,12 +283,5 @@ module gpp_utils
     call read_bp_file_real(input_solver_file, "reg1/z_global", z_glob)
   end subroutine read_model_file
 
-  subroutine init_vars()
-       allocate(kernels(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_GLOB))
-  end subroutine init_vars
-
-  subroutine clean_vars()
-        deallocate(kernels)
-    end subroutine clean_vars
 
 end module gpp_utils

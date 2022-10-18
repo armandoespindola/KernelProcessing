@@ -36,6 +36,37 @@ module lbfgs_subs
     endif
   end subroutine get_sys_args
 
+
+
+  subroutine get_sys_args_bm(kernel_parfile,input_path_file, solver_file,perturb_file,precond_file, outputfn)
+    character(len=*), intent(inout) :: input_path_file, solver_file, outputfn,kernel_parfile
+    character(len=*), intent(inout) :: precond_file,perturb_file
+
+    if(myrank == 0) print*, '|<============= Get System Args =============>|'
+
+    call getarg(1, kernel_parfile)
+    call getarg(2, input_path_file)
+    call getarg(3, solver_file)
+    call getarg(4, outputfn)
+    call getarg(5, perturb_file)
+    call getarg(6, precond_file)
+
+    if(trim(input_path_file) == '' .or. trim(solver_file) == '' &
+         .or. trim(outputfn) == '' .or. trim(kernel_parfile) == '' &
+         .or. trim(perturb_file) == '') then
+      call exit_mpi("Usage: ./xlbfgs_bm input_path_file solver_file outputfn H0_file[optional]")
+    endif
+
+    if(myrank == 0) then
+      print*, "Input path file: ", trim(input_path_file)
+      print*, "Solver file:", trim(solver_file)
+      print*, "Precond file: ", trim(precond_file)
+      print*, "Output file: ", trim(outputfn)
+      print*, "Perturb file: ", trim(perturb_file)
+      
+    endif
+  end subroutine get_sys_args_bm
+
   subroutine parse_input_path(fn, niter, gradient_files, model_change_files)
     character(len=*), intent(in) :: fn
     integer, intent(inout) :: niter
@@ -201,6 +232,120 @@ module lbfgs_subs
     direction = -1.0 * direction
 
   end subroutine calculate_LBFGS_direction
+
+
+    subroutine calculate_LBFGS_Bm(niter, nkernels, jacobian, test_m, &
+                                       precond, yks, sks,Bm)
+    integer, intent(in) :: niter
+    integer, intent(in) :: nkernels
+    real(kind=CUSTOM_REAL), dimension(:, :, :, :), intent(in) :: jacobian
+    real(kind=CUSTOM_REAL), dimension(:, :, :, :, :), intent(in) :: test_m
+    real(kind=CUSTOM_REAL), dimension(:, :, :, :, :), intent(in) :: precond
+    real(kind=CUSTOM_REAL), dimension(:, :, :, :, :, :), intent(in) :: yks, sks
+    real(kind=CUSTOM_REAL), dimension(:, :, :, :, :), intent(inout) :: Bm
+
+    integer :: i,j
+    real(kind=CUSTOM_REAL) :: tmp1,tmp2, beta,gamma,sigma,bts,ats,tmp,norm_y
+    real(kind=CUSTOM_REAL), dimension(:, :, :, :, :, :), allocatable :: ak,bk
+
+    if(myrank == 0) print*, '|<============= Calculating LBFGS Bm =============>|'
+    allocate(ak(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB, niter))
+    allocate(bk(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB, niter))
+
+    ak = 0.0d0
+    bk = 0.0d0
+    Bm = 0.0d0
+
+
+
+    call Parallel_ComputeL2normSquare(sks(:, :, :, :, :, niter), nkernels, &
+         jacobian, norm_y)
+
+    call Parallel_ComputeInnerProduct(sks(:, :, :, :, :, niter), &
+                                        yks(:, :, :, :, :, niter), &
+                                        nkernels, jacobian, tmp)
+
+
+    gamma = tmp / norm_y
+    sigma = gamma
+    !sigma = 1.0d0 / gamma
+
+    ! first round
+    do i=1, niter
+       
+      call Parallel_ComputeInnerProduct(sks(:, :, :, :, :, i), &
+                                        yks(:, :, :, :, :, i), &
+                                        nkernels, jacobian, tmp)
+
+      bk(:, :, :, :, :, i) = yks(:, :, :, :, :, i) / sqrt(tmp)
+
+
+
+      ! B0 approximation
+      ak(:, :, :, :, :, i) = sks(:, :, :, :, :, i) * sigma
+
+
+      do j=1,i - 1,1
+         
+         call Parallel_ComputeInnerProduct(bk(:, :, :, :, :, j), &
+              sks(:, :, :, :, :, i), &
+              nkernels, jacobian, bts)
+
+
+         call Parallel_ComputeInnerProduct(ak(:, :, :, :, :, j), &
+              sks(:, :, :, :, :, i), &
+              nkernels, jacobian, ats)
+
+
+         ak(:, :, :, :, :, i) = ak(:, :, :, :, :, i) + (bts * bk(:, :, :, :, :, j) - &
+              ats * ak(:, :, :, :, :, j))
+
+         if(myrank == 0) write(*, '(A, I2, A, i2, A)') &
+              "Interior Loop [iter=", j, "/", i-1, "]"
+         
+      enddo
+      
+
+      call Parallel_ComputeInnerProduct(sks(:, :, :, :, :, i), &
+                                        ak(:, :, :, :, :, i), &
+                                        nkernels, jacobian, tmp)
+
+
+      ak(:, :, :, :, :, i) = ak(:, :, :, :, :, i) / sqrt(tmp)
+     
+
+      if(myrank == 0) write(*, '(A, I2, A, i2, A)') &
+        "Loop Approximation[iter=", i, "/", niter, "]"
+
+   enddo
+
+   do i=1,niter
+      
+         call Parallel_ComputeInnerProduct(test_m(:, :, :, :, :), &
+                                        ak(:, :, :, :, :, i), &
+                                        nkernels, jacobian, tmp1)
+
+
+         call Parallel_ComputeInnerProduct(test_m(:, :, :, :, :), &
+                                        bk(:, :, :, :, :, i), &
+                                        nkernels, jacobian, tmp2)
+
+
+      Bm(:, :, :, :, :) = Bm(:, :, :, :, :) + (bk(:, :, :, :, :, i) * tmp2 - &
+           ak(:, :, :, :, :, i) * tmp1)
+
+
+      if(myrank == 0) write(*, '(A, I2, A, i2, A)') &
+        "Applying B to m (Bm)[iter=", i, "/", niter, "]"
+
+   enddo
+   
+
+   Bm(:, :, :, :, :) = Bm(:, :, :, :, :) + sigma * test_m(:, :, :, :, :)  
+
+
+
+  end subroutine calculate_LBFGS_Bm
 
 
 

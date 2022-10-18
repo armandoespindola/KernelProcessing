@@ -10,7 +10,7 @@ FCFLAGS=-O3 -Wall -J $(OBJDIR) -I $(OBJDIR)
 
 # INTEL COMPILERS
 FC=ifort
-MPIFC=mpif90
+MPIFC=ftn
 FCFLAGS=-O3 -W1 -module $(OBJDIR) -I $(OBJDIR)
 
 
@@ -34,7 +34,6 @@ all: $(BINDIR)/xsteepDescent \
 	$(BINDIR)/xmerge_azi_kernels \
 	$(BINDIR)/xupdate_model \
 	$(BINDIR)/xblend_model \
-	$(BINDIR)/xgauss_single \
 	$(BINDIR)/xbp2binary \
 	$(BINDIR)/xascii2bp \
 	$(BINDIR)/xabs_kernel \
@@ -44,6 +43,7 @@ all: $(BINDIR)/xsteepDescent \
 	$(BINDIR)/xrandom_probe_lbfgs \
 	$(BINDIR)/xperturb_model \
 	$(BINDIR)/xupdate_model_par \
+	$(BINDIR)/xresolution_lbfgs \
 	$(BINDIR)/xmerge_adios_files
 
 
@@ -110,6 +110,9 @@ $(OBJDIR)/lbfgs_subs.o: $(SRCDIR)/lbfgs_subs.f90 $(objects)
 $(OBJDIR)/lbfgs.o: $(SRCDIR)/lbfgs.f90 $(OBJDIR)/lbfgs_subs.o $(objects)
 	$(MPIFC) $(FCFLAGS) -c $< -o $@ $(adios_inc)
 
+$(OBJDIR)/resolution_Hm.o: $(SRCDIR)/resolution_Hm.f90 $(OBJDIR)/lbfgs_subs.o $(objects)
+	$(MPIFC) $(FCFLAGS) -c $< -o $@ $(adios_inc)
+
 $(OBJDIR)/update_model.o: $(SRCDIR)/update_model.f90  $(objects)
 	$(MPIFC) $(FCFLAGS) -c $< -o $@ $(adios_inc)
 
@@ -123,9 +126,6 @@ $(OBJDIR)/blend_model.o: $(SRCDIR)/blend_model.f90 $(objects)
 	$(MPIFC) $(FCFLAGS) -c $< -o $@ $(adios_inc)
 
 $(OBJDIR)/gpp_utils.o: $(SRCDIR)/gpp_utils.f90 $(objects)
-	$(MPIFC) $(FCFLAGS) -c $< -o $@ $(adios_inc)
-
-$(OBJDIR)/gaussian_perturb_single.o: $(SRCDIR)/gaussian_perturb_single.f90 $(objects) $(OBJDIR)/gpp_utils.o
 	$(MPIFC) $(FCFLAGS) -c $< -o $@ $(adios_inc)
 
 $(OBJDIR)/perturb_model_parameters.o: $(SRCDIR)/perturb_model_parameters.f90 $(objects) $(OBJDIR)/gpp_utils.o
@@ -194,6 +194,10 @@ $(BINDIR)/xcg_direction: $(OBJDIR)/conjugateGradient.o $(objects)
 $(BINDIR)/xlbfgs: $(OBJDIR)/lbfgs.o $(OBJDIR)/lbfgs_subs.o $(objects)
 	$(MPIFC) $(FCFLAGS) -o $@ $^ $(adios_link) $(adios_inc)
 
+
+$(BINDIR)/xresolution_lbfgs: $(OBJDIR)/resolution_Hm.o $(OBJDIR)/lbfgs_subs.o $(objects)
+	$(MPIFC) $(FCFLAGS) -o $@ $^ $(adios_link) $(adios_inc)
+
 $(BINDIR)/xupdate_model: $(OBJDIR)/update_model.o $(objects)
 	$(MPIFC) $(FCFLAGS) -o $@ $^ $(adios_link) $(adios_inc)
 
@@ -204,9 +208,6 @@ $(BINDIR)/xmodel_perturb_ref: $(OBJDIR)/model_perturb_ref.o $(objects)
 	$(MPIFC) $(FCFLAGS) -o $@ $^ $(adios_link) $(adios_inc)
 
 $(BINDIR)/xblend_model: $(OBJDIR)/blend_model.o $(objects)
-	$(MPIFC) $(FCFLAGS) -o $@ $^ $(adios_link) $(adios_inc)
-
-$(BINDIR)/xgauss_single: $(OBJDIR)/gaussian_perturb_single.o $(objects) $(OBJDIR)/gpp_utils.o
 	$(MPIFC) $(FCFLAGS) -o $@ $^ $(adios_link) $(adios_inc)
 
 $(BINDIR)/xperturb_model: $(OBJDIR)/perturb_model_parameters.o $(objects) $(OBJDIR)/gpp_utils.o

@@ -15,33 +15,32 @@ module perturb_model_parameters
   ! MODEL ARRAY
   !real(kind=CUSTOM_REAL), dimension(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_GLOB) :: models = 0.0
   !real(kind=CUSTOM_REAL), dimension(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_GLOB) :: models_new = 0.0
-
-  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable :: models
-  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable :: models_new
-
   
   
 contains
 
 
-  subroutine get_args(kernel_parfile,input_file,input_solver_file, output_dir)
-    character(len=*), intent(inout) :: input_file, input_solver_file,output_dir
-    character(len=*), intent(inout) :: kernel_parfile
+  subroutine get_args(kernel_parfile,solver_file,input_model_file,perturb_file,output_dir)
+    character(len=*), intent(inout) :: output_dir,solver_file,input_model_file
+    character(len=*), intent(inout) :: kernel_parfile,perturb_file
 
     call getarg(1, kernel_parfile)
-    call getarg(2, input_file)
-    call getarg(3,input_solver_file)
-    call getarg(4, output_dir)
+    call getarg(2, solver_file)
+    call getarg(3, input_model_file)
+    call getarg(4, perturb_file)
+    call getarg(5, output_dir)
 
-    if(trim(input_solver_file) == '' .or. trim(input_file) == ''  &
-         .or. trim(output_dir) == '' .or. trim(kernel_parfile) == '') then
-      call exit_mpi("Usage: xperturb_model input_file input_solverfile output_dir")
+    if(trim(output_dir) == '' .or. trim(kernel_parfile) == '' .or. trim(input_model_file) == '' &
+         .or. trim(perturb_file) == '' .or. trim(solver_file) == '') then
+      call exit_mpi("Usage: xperturb_model kernel_parfile solver_file input_model_file perturb_file output_dir")
     endif
 
     if(myrank == 0) then
-       write(*, *) "Input ADIOS model: ", trim(input_file)
-       write (*,*) "Input ADIOS solver file: ", trim(input_solver_file) 
-      write(*, *) "Output dir: ", trim(output_dir)
+       write(*, *) "kernel parfile: ", trim(kernel_parfile)
+       write (*,*) "perturb file: ", trim(perturb_file)
+       write (*,*) "input model file: ", trim(input_model_file)
+       write(*, *) "Solver file: ", trim(solver_file)
+       write(*, *) "Output dir: ", trim(output_dir)
    endif
    
   end subroutine get_args
@@ -59,98 +58,129 @@ program main
 
   implicit none
 
-  character(len=500) :: input_file,output_dir,input_solver_file,output_file
-  character(len=500) :: kernel_parfile
-  integer :: ier
+  character(len=500) :: input_model_file,output_dir,solver_file,output_file,perturb_file
+  character(len=500) :: kernel_parfile,kernel_name,model_name
+  integer :: ier,i,idx_per,np,idx_model,j,k,ispec
 
-  real(kind=CUSTOM_REAL),dimension(1) :: depth,lat,sigmav,sigmah
-  real(kind=CUSTOM_REAL),dimension(6) :: lon
-  real(kind=CUSTOM_REAL):: fact
-  integer::iz,ilat,ilon,idx_par
+  real(kind=CUSTOM_REAL),dimension(:),allocatable :: depth,lat,sigmav,sigmah,lon,fact
+  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable :: models
+  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable :: models_new,perturbs
+
+  integer :: fh = 1001
+  character(len=500) :: line
 
 
   call init_mpi()
 
 
-  call get_args(kernel_parfile,input_file,input_solver_file, output_dir)
+  call get_args(kernel_parfile,solver_file,input_model_file,perturb_file,output_dir)
   call init_kernel_par(kernel_parfile)
 
   allocate(models(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_GLOB),models_new(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_GLOB))
-  
-  call init_vars()
+  allocate(perturbs(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNEL_GLOB))
   
   call adios_read_init_method (ADIOS_READ_METHOD_BP, MPI_COMM_WORLD, &
-                              "verbose=1", ier)
-
-  if (myrank==0) print*, "### READING MODEL PARAMETERS ####"
-  call read_bp_file_real(input_file,MODEL_NAMES_GLOB,models)
-
-
-  if (myrank==0) print*, "### READING SOLVER FILE ####"
-  call read_model_file(input_solver_file)
-
-
-  if(myrank == 0) write(*, '(A)') "|<-------- Add gaussian perturb -------->|"
-  kernels(:,:,:,:, :) = 0.0_CUSTOM_REAL
-
-  if(myrank == 0) write(*, '(A)') "|<-------- adding perturbations -------->|"
-
- 
+       "verbose=1", ier)
 
 
 
+  if(myrank == 0) write(*, '(A)') "|<-------- Reading solver file -------->|"
+  call read_model_file(solver_file)
 
-  ! Perturbations only attenuation
-  ! idx_par = 4 -> dqu
-  idx_par = 4
+  if(myrank == 0) write(*, '(A)') "|<-------- Reading file perturbations -------->|"
+  open(fh,file=trim(perturb_file), status='old')
+  read(fh, '(A)') line
+  kernel_name = trim(line)
+  if(myrank == 0) print*, "Kernel Name: ",trim(kernel_name)
+  read(fh, '(A)') line
+  model_name = trim(line)
+  if(myrank == 0) print*, "Model Name: ",trim(model_name)
+  read(fh,*) np
+
+  allocate(lat(np),lon(np),depth(np),sigmav(np),sigmah(np),fact(np))
+  do i=1,np
+     read(fh, *) lat(i),lon(i),depth(i),sigmav(i),sigmah(i),fact(i)
+  enddo
+
+  close(fh)
+
+
+  do i=1,NKERNEL_GLOB
+     if (trim(kernel_name) == trim(KERNEL_NAMES_GLOB(i))) then
+        idx_per = i
+     endif
+  enddo
+
+  do i=1,NPAR_GLOB
+     if ("reg1/"//trim(model_name) == trim(MODEL_NAMES_GLOB(i))) then
+        idx_model = i
+     endif
+  enddo
+
+
+  if(myrank == 0) print*, "|<---- Reading Model File ---->|"
+  call read_bp_file_real(input_model_file, MODEL_NAMES_GLOB, models)
+  
+  perturbs(:,:,:,:, :) = 0.0_CUSTOM_REAL
+
+  if(myrank == 0) write(*, '(A)') "|<-------- Creating perturbations -------->|"
+
+  do i=1,np
+     if (myrank==0) write (*,*) "r, lat, lon, sigmah0, sigmav0, fact"
+     if (myrank==0) write (*,*)  depth(i), lat(i),lon(i), sigmah(i), sigmav(i),fact(i)
+
+     call add_gaussian_perturb_elliptic(depth(i), lat(i), &
+          lon(i), sigmah(i), sigmav(i),idx_per,perturbs)
+     
+     perturbs(:,:,:,:,idx_per) = perturbs(:,:,:,:,idx_per) +  perturbs(:,:,:,:,idx_per) * fact(i)
+     
+  enddo
+
+
   models_new = models
-  models_new(:,:,:,:,idx_par) = 0.0d0
-  !depth=(/200.0,400.0,600.0 /)
-  depth=(/400.0/)
-  lat=(/0.0/)
-  lon=(/-135.0,-45.0,45.0,0.0,135.0,180.0/)
-  sigmav=(/350.0/)
-  sigmah=(/1250.0/)
+  
+  if(myrank == 0) write(*, '(A)') "|<-------- Adding perturbations -------->|"
 
-  do iz=1,1
-     do ilat=1,1
-        do ilon=1,6
-           !add_gaussian_perturb_elliptic(r, lat, lon, sigmah0, sigmav0, perturb_idx)
-          if (myrank==0) write (*,*) "r, lat, lon, sigmah0, sigmav0, perturb_idx"
-          if (myrank==0) write (*,*)  depth(iz), lat(ilat),lon(ilon), sigmah(iz), sigmav(iz)
 
-          
-
-         !  if (iz == 2) then
-       !    call add_gaussian_perturb_elliptic(depth(iz), lat(ilat), &
-       !         lon(ilon) + 22.0, sigmah(iz), sigmav(iz),1)
-       ! else
-
-          call add_gaussian_perturb_elliptic(depth(iz), lat(ilat), &
-                lon(ilon), sigmah(iz), sigmav(iz),1)
-          
-          !endif                 
-           
-          fact = 1.0 !(-1.0)**(iz + ilon + ilat)
-          !kernels=0.0d0
-          models_new(:,:,:,:,idx_par) = models_new(:,:,:,:,idx_par) +  kernels(:,:,:,:,1) * fact
-          kernels= 0.0d0
+  
+  if (trim(model_name) == "qmu") then
+     do ispec = 1, NSPEC
+      do k = 1, NGLLZ
+        do j = 1, NGLLY
+           do i = 1, NGLLX
+              models_new(i,j,k,ispec,idx_model) = 1.0 / ( (1.0 / models_new(i,j,k,ispec,idx_model)) * &
+                   exp(perturbs(i,j,k,ispec,idx_per)))
+           enddo
         enddo
      enddo
+  enddo
+  
+else
+   do ispec = 1, NSPEC
+      do k = 1, NGLLZ
+        do j = 1, NGLLY
+           do i = 1, NGLLX
+              models_new(i,j,k,ispec,idx_model) = models_new(i,j,k,ispec,idx_model) * exp(perturbs(i,j,k,ispec,idx_per))
+           enddo
+        enddo
      enddo
-
-     models_new(:,:,:,:,idx_par) = 1.0/ ( (1.0 / models(:,:,:,:,idx_par)) * (1.0 + 0.65 * models_new(:,:,:,:,idx_par)) )
-    
+  enddo
+  endif
+  
+  
      
   ! stores new model in files
-  output_file = trim(output_dir)//'/model_gll.bp'
-  if(myrank == 0) print*, "New model file: ", trim(output_file)
- call write_bp_file(models_new, MODEL_NAMES_GLOB, "KERNELS_GROUP", output_file)
+  output_file = trim(output_dir)//'/perturb_m.bp'
+  if(myrank == 0) print*, "Perturb file: ", trim(output_file)
+  call write_bp_file(perturbs, KERNEL_NAMES_GLOB, "KERNELS_GROUP", output_file)
 
+
+  output_file = trim(output_dir)//'/model_gll_dm.bp'
+  if(myrank == 0) print*, "Model file: ", trim(output_file)
+  call write_bp_file(models_new, MODEL_NAMES_GLOB, "KERNELS_GROUP", output_file)
 
  call adios_finalize(myrank, ier)
- call clean_vars()
-  call MPI_FINALIZE(ier)
+ call MPI_FINALIZE(ier)
   
 
   

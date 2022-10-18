@@ -100,7 +100,7 @@ module preconditioner_subs
 
    enddo
 
-   if (myrank == 0) write(*,*) "Normalize Hessian"
+   if (myrank == 0) write(*,*) "|--------- Normalize Hessian ---------|"
    call max_all_all_cr(maxval(invHess(:, :, :, :,:)), maxh_all)
    invHess = invHess / maxh_all
    call min_all_all_cr(minval(invHess(:, :, :, :,:)), minh_all)
