@@ -53,7 +53,7 @@ program main
   use mpi
   use perturb_model_parameters
   use adios_read_mod
-  use global_var, only: myrank,CUSTOM_REAL,init_kernel_par,NGLLX,NGLLY,NGLLZ,NPAR_GLOB,MODEL_NAMES_GLOB,NSPEC
+  use global_var, only: myrank,CUSTOM_REAL,init_kernel_par,NGLLX,NGLLY,NGLLZ,NPAR_GLOB,MODEL_NAMES_GLOB,NSPEC,NMODEL_TOTAL
   use gpp_utils
 
   implicit none
@@ -64,7 +64,7 @@ program main
 
   real(kind=CUSTOM_REAL),dimension(:),allocatable :: depth,lat,sigmav,sigmah,lon,fact
   real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable :: models
-  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable :: models_new,perturbs
+  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable :: models_new,perturbs,perturb
 
   integer :: fh = 1001
   character(len=500) :: line
@@ -76,8 +76,8 @@ program main
   call get_args(kernel_parfile,solver_file,input_model_file,perturb_file,output_dir)
   call init_kernel_par(kernel_parfile)
 
-  allocate(models(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_GLOB),models_new(NGLLX,NGLLY,NGLLZ,NSPEC,NPAR_GLOB))
-  allocate(perturbs(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNEL_GLOB))
+  allocate(models(NGLLX,NGLLY,NGLLZ,NSPEC,NMODEL_TOTAL),models_new(NGLLX,NGLLY,NGLLZ,NSPEC,NMODEL_TOTAL))
+  allocate(perturbs(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNEL_GLOB),perturb(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNEL_GLOB))
   
   call adios_read_init_method (ADIOS_READ_METHOD_BP, MPI_COMM_WORLD, &
        "verbose=1", ier)
@@ -112,16 +112,17 @@ program main
   enddo
 
   do i=1,NPAR_GLOB
-     if ("reg1/"//trim(model_name) == trim(MODEL_NAMES_GLOB(i))) then
+     if ("reg1/"//trim(model_name) == trim(MODEL_NAMES_TOTAL(i))) then
         idx_model = i
      endif
   enddo
 
 
   if(myrank == 0) print*, "|<---- Reading Model File ---->|"
-  call read_bp_file_real(input_model_file, MODEL_NAMES_GLOB, models)
+  call read_bp_file_real(input_model_file, MODEL_NAMES_TOTAL, models)
   
   perturbs(:,:,:,:, :) = 0.0_CUSTOM_REAL
+  perturb(:,:,:,:, :) = 0.0_CUSTOM_REAL
 
   if(myrank == 0) write(*, '(A)') "|<-------- Creating perturbations -------->|"
 
@@ -130,9 +131,11 @@ program main
      if (myrank==0) write (*,*)  depth(i), lat(i),lon(i), sigmah(i), sigmav(i),fact(i)
 
      call add_gaussian_perturb_elliptic(depth(i), lat(i), &
-          lon(i), sigmah(i), sigmav(i),idx_per,perturbs)
+          lon(i), sigmah(i), sigmav(i),idx_per,perturb)
      
-     perturbs(:,:,:,:,idx_per) = perturbs(:,:,:,:,idx_per) +  perturbs(:,:,:,:,idx_per) * fact(i)
+     perturbs(:,:,:,:,idx_per) = perturbs(:,:,:,:,idx_per) +  perturb(:,:,:,:,idx_per) * fact(i)
+
+     perturb(:,:,:,:, :) = 0.0_CUSTOM_REAL
      
   enddo
 
@@ -177,7 +180,7 @@ else
 
   output_file = trim(output_dir)//'/model_gll_dm.bp'
   if(myrank == 0) print*, "Model file: ", trim(output_file)
-  call write_bp_file(models_new, MODEL_NAMES_GLOB, "KERNELS_GROUP", output_file)
+  call write_bp_file(models_new, MODEL_NAMES_TOTAL, "KERNELS_GROUP", output_file)
 
  call adios_finalize(myrank, ier)
  call MPI_FINALIZE(ier)

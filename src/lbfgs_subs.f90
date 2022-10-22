@@ -38,31 +38,33 @@ module lbfgs_subs
 
 
 
-  subroutine get_sys_args_bm(kernel_parfile,input_path_file, solver_file,perturb_file,precond_file, outputfn)
-    character(len=*), intent(inout) :: input_path_file, solver_file, outputfn,kernel_parfile
-    character(len=*), intent(inout) :: precond_file,perturb_file
+  subroutine get_sys_args_bm(kernel_parfile,input_path_file, solver_file,grad_m0,grad_dm,precond_file, outputdir)
+    character(len=*), intent(inout) :: input_path_file, solver_file, outputdir,kernel_parfile
+    character(len=*), intent(inout) :: precond_file,grad_dm,grad_m0
 
     if(myrank == 0) print*, '|<============= Get System Args =============>|'
 
     call getarg(1, kernel_parfile)
     call getarg(2, input_path_file)
     call getarg(3, solver_file)
-    call getarg(4, outputfn)
-    call getarg(5, perturb_file)
-    call getarg(6, precond_file)
+    call getarg(4, outputdir)
+    call getarg(5, grad_m0)
+    call getarg(6, grad_dm)
+    call getarg(7, precond_file)
 
     if(trim(input_path_file) == '' .or. trim(solver_file) == '' &
-         .or. trim(outputfn) == '' .or. trim(kernel_parfile) == '' &
-         .or. trim(perturb_file) == '') then
-      call exit_mpi("Usage: ./xlbfgs_bm input_path_file solver_file outputfn H0_file[optional]")
+         .or. trim(outputdir) == '' .or. trim(kernel_parfile) == '' &
+         .or. trim(grad_m0) == '' .or. trim(grad_dm) == '' ) then
+  call exit_mpi("Usage: ./xlbfgs_bm kernel_parfile input_path_file solver_file outputdir grad_m0 grad_dm H0_file[optional]")
     endif
 
     if(myrank == 0) then
       print*, "Input path file: ", trim(input_path_file)
       print*, "Solver file:", trim(solver_file)
       print*, "Precond file: ", trim(precond_file)
-      print*, "Output file: ", trim(outputfn)
-      print*, "Perturb file: ", trim(perturb_file)
+      print*, "Output dir: ", trim(outputdir)
+      print*, "grad_m0 file: ", trim(grad_m0)
+      print*, "grad_dm file: ", trim(grad_dm)
       
     endif
   end subroutine get_sys_args_bm

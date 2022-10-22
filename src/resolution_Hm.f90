@@ -15,7 +15,8 @@ program main
 
   ! Number of previous iteration used in L-BFGS
   integer :: niter
-  character(len=512) :: input_path_file, solver_file, outputfn,kernel_parfile,precond_file,perturb_file
+  character(len=512) :: input_path_file, solver_file, outputdir,kernel_parfile,precond_file,perturb_file,output_file
+  character(len=512) :: grad_m0_file, grad_dm_file
   character(len=512), dimension(:), allocatable :: gradient_files, model_change_files
 
   ! jacobian related to the geometry of mesh
@@ -31,7 +32,7 @@ program main
 
   ! precond kernels (default = 1.0, no preconditioner applied)
   real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable :: precond,diagH
-  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable :: test_m
+  real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable :: gradient_dm, gradient_m0,test_m
   real(kind=CUSTOM_REAL), dimension(:,:,:,:,:),allocatable :: Bm
 
   ! According to Numerical Optimization, page 177:
@@ -45,12 +46,14 @@ program main
   call init_mpi()
 
   if(myrank == 0) print*, "|<---- Get System Args ---->|"
-  call get_sys_args_bm(kernel_parfile,input_path_file, solver_file,perturb_file,precond_file, outputfn)
+  call get_sys_args_bm(kernel_parfile,input_path_file, solver_file, grad_m0_file, grad_dm_file, &
+       precond_file, outputdir)
 
   call init_kernel_par(kernel_parfile)
 
-  allocate(precond(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNEL_GLOB),test_m(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNEL_GLOB), &
-       Bm(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNEL_GLOB))
+  allocate(precond(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNEL_GLOB),gradient_dm(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNEL_GLOB), &
+       Bm(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNEL_GLOB), gradient_m0(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNEL_GLOB), &
+       test_m(NGLLX,NGLLY,NGLLZ,NSPEC,NKERNEL_GLOB))
 
 
   if(myrank == 0) print*, "|<---- Parse Input Path File ---->|"
@@ -78,14 +81,21 @@ program main
   endif
 
   
-  if(myrank == 0) print*, "|<---- Reading perturbations (dm) ---->|"
-  call read_bp_file_real(perturb_file, KERNEL_NAMES_GLOB, test_m)
+  if(myrank == 0) print*, "|<---- Reading Gradient (m0) ---->|"
+  call read_bp_file_real(grad_m0_file, KERNEL_NAMES_GLOB, gradient_m0)
+
+  if(myrank == 0) print*, "|<---- Reading Gradient (dm) ---->|"
+  call read_bp_file_real(grad_dm_file, KERNEL_NAMES_GLOB, gradient_dm)
+
+
+  test_m = gradient_dm - gradient_m0
 
   
-  if(myrank == 0) print*, "|<---- L-BFGS Bm ---->|"
-  call calculate_LBFGS_Bm(niter, NKERNEL_GLOB, jacobian, test_m, precond, yks, sks, Bm)
+  !if(myrank == 0) print*, "|<---- L-BFGS Bm ---->|"
+  !call calculate_LBFGS_Bm(niter, NKERNEL_GLOB, jacobian, test_m, precond, yks, sks, Bm)
 
-!  call calculate_LBFGS_direction(niter, NKERNEL_GLOB, jacobian, test_m, precond, yks, sks, Bm)
+  if(myrank == 0) print*, "|<---- L-BFGS H^-1(Bdm) ---->|"
+  call calculate_LBFGS_direction(niter, NKERNEL_GLOB, jacobian, test_m, precond, yks, sks, Bm)
 
   if(myrank == 0) print*, "|<---- L-BFGS Bm (Stats) ---->|"
   do iker = 1,NKERNEL_GLOB
@@ -99,8 +109,14 @@ program main
      endif
   enddo
 
-  call write_bp_file(Bm, KERNEL_NAMES_GLOB, "KERNELS_GROUP", outputfn)
-  if(myrank == 0) print*, "Resolution LBFGS (Bdm) saved: ", trim(outputfn)
+
+  output_file = trim(outputdir)//'/Bdm.bp'
+  call write_bp_file(test_m, KERNEL_NAMES_GLOB, "KERNELS_GROUP", output_file )
+  if(myrank == 0) print*, "Resolution Bdm saved: ", trim(output_file)
+
+  output_file = trim(outputdir)//'/HBdm.bp'
+  call write_bp_file(Bm, KERNEL_NAMES_GLOB, "KERNELS_GROUP", output_file)
+  if(myrank == 0) print*, "Resolution LBFGS (HBdm) saved: ", trim(output_file)
 
   call adios_finalize(myrank, ier)
 
