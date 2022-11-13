@@ -37,7 +37,7 @@ module global_var
   integer :: myrank, nprocs
 
   !parameters for kernel processing
-  integer :: NPAR_GLOB,NKERNEL_GLOB
+  integer :: NPAR_GLOB,NKERNEL_GLOB,NHESS0
   integer :: QMU_IDX,KQMU_IDX,NMODEL0,NMODEL_TOTAL
   logical :: ATTENUATION_FLAG
   character(len=500), dimension(:),allocatable :: KERNEL_NAMES_GLOB,MODEL_NAMES_GLOB,MODEL_PERTURB_NAMES_GLOB
@@ -375,16 +375,15 @@ module global_var
     read(fh,*) NKERNEL_GLOB
     !if (myrank == 0) print*,NKERNEL_GLOB
 
-    allocate(KERNEL_NAMES_GLOB(NKERNEL_GLOB),KER_HESS_NAMES_GLOB(NKERNEL_GLOB*2),stat=ier)
-    allocate(HESS_NAMES_GLOB(NKERNEL_GLOB),stat=ier)
+    allocate(KERNEL_NAMES_GLOB(NKERNEL_GLOB))
     
     do i=1,NKERNEL_GLOB
        read(fh, '(A)') line
        !if (myrank == 0) print*,trim(line)
        KERNEL_NAMES_GLOB(i)=trim(line)
        KER_HESS_NAMES_GLOB(i)=trim(line)
-       KER_HESS_NAMES_GLOB(i + NKERNEL_GLOB)="hess_"//trim(line)
-       HESS_NAMES_GLOB(i)="hess_"//trim(line)
+    !   KER_HESS_NAMES_GLOB(i + NKERNEL_GLOB)="hess_"//trim(line)
+    !   HESS_NAMES_GLOB(i)="hess_"//trim(line)
     end do
 
     read(fh,*) NMODEL0
@@ -398,6 +397,20 @@ module global_var
           MODEL0_NAMES(i)="reg1/"//trim(line)
        end do
     endif
+
+    read(fh,*) NHESS0
+
+    allocate(KER_HESS_NAMES_GLOB(NKERNEL_GLOB + NHESS0),stat=ier)
+    allocate(HESS_NAMES_GLOB(NHESS0),stat=ier)
+    
+    do i=1,NHESS0
+       read(fh, '(A)') line
+       !if (myrank == 0) print*,trim(line)
+       KER_HESS_NAMES_GLOB(i + NKERNEL_GLOB)=trim(line)
+       HESS_NAMES_GLOB(i)=trim(line)
+    end do
+    
+    
     
     close(fh)
 
@@ -507,7 +520,13 @@ module global_var
           write(*, '(A,A)')"FIXED MODEL NAMES: " , trim(MODEL0_NAMES(i))
        enddo
     endif
-    
+
+    if (myrank==0) then
+       do i=1,NHESS0
+          write(*, '(A,A)')"FIXED MODEL NAMES: " , trim(HESS_NAMES_GLOB(i))
+       enddo
+    endif
+
     
     ! close(fh)
     

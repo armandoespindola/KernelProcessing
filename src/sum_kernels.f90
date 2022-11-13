@@ -83,9 +83,10 @@ contains
   end subroutine get_sys_args
 
 
-    subroutine clip_sem(kernels,percentile)
+    subroutine clip_sem(kernels,percentile,nvar)
     real(kind=CUSTOM_REAL), dimension(:, :, :, :, :), intent(inout) :: kernels
     real(kind=CUSTOM_REAL),intent(in) :: percentile
+    integer,intent(in) :: nvar
     real(kind=CUSTOM_REAL), dimension(:,:),allocatable:: ksort,ksort_full
     real(kind=CUSTOM_REAL),dimension(:),allocatable::kpercent
     real(kind=CUSTOM_REAL) :: val
@@ -94,14 +95,14 @@ contains
 
     npercent = int(floor(percentile * NSPEC * nprocs))
     
-    allocate(ksort(NSPEC,NKERNEL_GLOB),stat=ier)
-    allocate(ksort_full(NSPEC*nprocs,NKERNEL_GLOB),kpercent(NKERNEL_GLOB),stat=ier)
+    allocate(ksort(NSPEC,nvar),stat=ier)
+    allocate(ksort_full(NSPEC*nprocs,nvar),kpercent(nvar),stat=ier)
 
     ksort = 0._CUSTOM_REAL
     ksort_full = 0._CUSTOM_REAL
     kpercent = 0._CUSTOM_REAL
     ! Prepare array for sorting
-    do iker = 1,NKERNEL_GLOB
+    do iker = 1,nvar
        do ispec = 1, NSPEC 
           ksort(ispec,iker) = maxval(abs(kernels(:,:,:,ispec,iker)))
        enddo
@@ -115,12 +116,12 @@ contains
 
     if (myrank==0) then
        write(*,*) "Percentil Kernels"
-       do i=1,NKERNEL_GLOB
+       do i=1,nvar
           write(*,*) "<Percentile,Value Kernel>",percentile*100,kpercent(i)
        enddo
     endif
 
-    do iker = 1,NKERNEL_GLOB
+    do iker = 1,nvar
        do ispec = 1, NSPEC
           do k = 1, NGLLZ
              do j = 1, NGLLY
@@ -174,7 +175,7 @@ program sum_kernels
   use mpi
   use adios_read_mod
   use global_var, only : CUSTOM_REAL, NGLLX, NGLLY, NGLLZ, NSPEC, myrank,init_kernel_par,NPAR_GLOB,NKERNEL_GLOB
-  use global_var, only : init_mpi, exit_mpi,KERNEL_NAMES_GLOB,MODEL_NAMES_GLOB,KERNEL_NAMES_GLOB_NQ
+  use global_var, only : init_mpi, exit_mpi,KERNEL_NAMES_GLOB,MODEL_NAMES_GLOB,KERNEL_NAMES_GLOB_NQ,NHESS0
   use global_var, only : ATTENUATION_FLAG,QMU_IDX,KQMU_IDX,KER_HESS_NAMES_GLOB,max_all_all_cr
   use AdiosIO
   use sum_kernels_subs
@@ -217,6 +218,7 @@ program sum_kernels
   call init_kernel_par(kernel_parfile)
 
   allocate(total_kernel(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB*2),kernels(NGLLX, NGLLY, NGLLZ, NSPEC, NKERNEL_GLOB))
+  allocate(hessian(NGLLX, NGLLY, NGLLZ, NSPEC, NHESS0))
 
 
 !  if (kernel_names(hess_idx) /= "hess_kl_crust_mantle") call exit_mpi("Incorrect hess_idx")
@@ -274,16 +276,19 @@ program sum_kernels
     !kernels(:, :, :, :, hess_idx:(hess_idx+2)) = abs(kernels(:, :, :, :, hess_idx:(hess_idx+2)))
 
     if (myrank == 0) write(*, *) 'Cliping kernels 99.8',ievent
-    call clip_sem(kernels,0.9980)
+    call clip_sem(kernels,0.9950,NKERNEL_GLOB + NHESS0)
     
     do idx=1,NKERNEL_GLOB
        total_kernel(:,:,:,:,idx) = total_kernel(:,:,:,:,idx) + kernels(:,:,:,:,idx) * weight
     enddo
-    ! subspace diagonal hessian
-    do idx=NKERNEL_GLOB+1,NKERNEL_GLOB*2
-       total_kernel(:,:,:,:,idx)  = total_kernel(:,:,:,:,idx) + &
-            kernels(:,:,:,:,idx-NKERNEL_GLOB)**2 
-    enddo
+
+    if (NHESS0 > 0 ) then
+       call read_bp_file_real(kernel_file, HESS_NAMES_GLOB, hessian)
+     
+       do idx=NKERNEL_GLOB+1,NKERNEL_GLOB + NHESS0
+          total_kernel(:,:,:,:,idx)  = total_kernel(:,:,:,:,idx) + &
+               abs(hessian(:,:,:,:,idx - NKERNEL_GLOB)) * weight 
+       enddo
  enddo
 
 
@@ -305,9 +310,9 @@ program sum_kernels
      total_kernel(:,:,:,:,KQMU_IDX) = &
           total_kernel(:,:,:,:,KQMU_IDX) * 1.0 / models(:,:,:,:,QMU_IDX)
      
-     total_kernel(:,:,:,:,KQMU_IDX + NKERNEL_GLOB) = &
-          total_kernel(:,:,:,:,KQMU_IDX + NKERNEL_GLOB) &
-          * (1.0 / models(:,:,:,:,QMU_IDX))**2.0
+     ! total_kernel(:,:,:,:,KQMU_IDX + NKERNEL_GLOB) = &
+     !      total_kernel(:,:,:,:,KQMU_IDX + NKERNEL_GLOB) &
+     !      * (1.0 / models(:,:,:,:,QMU_IDX))**2.0
 
 
      call write_bp_file(total_kernel, KER_HESS_NAMES_GLOB, "KERNEL_GROUPS", outputfn)
