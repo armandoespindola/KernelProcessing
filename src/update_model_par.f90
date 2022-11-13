@@ -308,8 +308,8 @@ contains
     global_vmax_all = maxval(global_vmax)
     
     if(myrank == 0) then
-      print*, "--- Normalization ---"
-      write(*, '(A, ES16.8)') 'Using maximum to normalize: ', global_vmax_all
+      !print*, "--- Normalization ---"
+      !write(*, '(A, ES16.8)') 'Using maximum to normalize: ', global_vmax_all
       write(*, '(A, F16.8)') 'Step length:                ', step_fac
     endif
 
