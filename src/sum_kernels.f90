@@ -176,7 +176,7 @@ program sum_kernels
   use adios_read_mod
   use global_var, only : CUSTOM_REAL, NGLLX, NGLLY, NGLLZ, NSPEC, myrank,init_kernel_par,NPAR_GLOB,NKERNEL_GLOB
   use global_var, only : init_mpi, exit_mpi,KERNEL_NAMES_GLOB,MODEL_NAMES_GLOB,KERNEL_NAMES_GLOB_NQ,NHESS0
-  use global_var, only : ATTENUATION_FLAG,QMU_IDX,KQMU_IDX,KER_HESS_NAMES_GLOB,max_all_all_cr
+  use global_var, only : ATTENUATION_FLAG,QMU_IDX,KQMU_IDX,KER_HESS_NAMES_GLOB,max_all_all_cr,HESS_NAMES_GLOB
   use AdiosIO
   use sum_kernels_subs
 
@@ -209,7 +209,7 @@ program sum_kernels
 
 
   real(kind=CUSTOM_REAL),dimension(:,:,:,:,:),allocatable:: total_kernel
-  real(kind=CUSTOM_REAL),dimension(:,:,:,:,:),allocatable:: kernels
+  real(kind=CUSTOM_REAL),dimension(:,:,:,:,:),allocatable:: kernels,hessian
 
   call init_mpi()
 
@@ -275,8 +275,8 @@ program sum_kernels
     !kernels(:, :, :, :, hess_idx) = abs(kernels(:, :, :, :, hess_idx))
     !kernels(:, :, :, :, hess_idx:(hess_idx+2)) = abs(kernels(:, :, :, :, hess_idx:(hess_idx+2)))
 
-    if (myrank == 0) write(*, *) 'Cliping kernels 99.8',ievent
-    call clip_sem(kernels,0.9950,NKERNEL_GLOB + NHESS0)
+    if (myrank == 0) write(*, *) 'Cliping Kernels 99.8',ievent
+    call clip_sem(kernels,0.9950,NKERNEL_GLOB)
     
     do idx=1,NKERNEL_GLOB
        total_kernel(:,:,:,:,idx) = total_kernel(:,:,:,:,idx) + kernels(:,:,:,:,idx) * weight
@@ -284,11 +284,15 @@ program sum_kernels
 
     if (NHESS0 > 0 ) then
        call read_bp_file_real(kernel_file, HESS_NAMES_GLOB, hessian)
+       if (myrank == 0) write(*, *) 'Cliping Hessian 99.8',ievent
+       call clip_sem(kernels,0.9950,NKERNEL_GLOB)
      
        do idx=NKERNEL_GLOB+1,NKERNEL_GLOB + NHESS0
           total_kernel(:,:,:,:,idx)  = total_kernel(:,:,:,:,idx) + &
                abs(hessian(:,:,:,:,idx - NKERNEL_GLOB)) * weight 
        enddo
+    endif
+    
  enddo
 
 

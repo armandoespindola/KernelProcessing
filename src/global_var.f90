@@ -381,7 +381,7 @@ module global_var
        read(fh, '(A)') line
        !if (myrank == 0) print*,trim(line)
        KERNEL_NAMES_GLOB(i)=trim(line)
-       KER_HESS_NAMES_GLOB(i)=trim(line)
+    !   KER_HESS_NAMES_GLOB(i)=trim(line)
     !   KER_HESS_NAMES_GLOB(i + NKERNEL_GLOB)="hess_"//trim(line)
     !   HESS_NAMES_GLOB(i)="hess_"//trim(line)
     end do
@@ -408,6 +408,10 @@ module global_var
        !if (myrank == 0) print*,trim(line)
        KER_HESS_NAMES_GLOB(i + NKERNEL_GLOB)=trim(line)
        HESS_NAMES_GLOB(i)=trim(line)
+    end do
+
+    do i=1,NKERNEL_GLOB
+       KER_HESS_NAMES_GLOB(i)=KERNEL_NAMES_GLOB(i)
     end do
     
     
