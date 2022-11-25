@@ -38,9 +38,9 @@ module lbfgs_subs
 
 
 
-  subroutine get_sys_args_bm(kernel_parfile,input_path_file, solver_file,grad_m0,grad_dm,precond_file, outputdir)
+  subroutine get_sys_args_bm(kernel_parfile,input_path_file, solver_file,grad_dm,precond_file, outputdir)
     character(len=*), intent(inout) :: input_path_file, solver_file, outputdir,kernel_parfile
-    character(len=*), intent(inout) :: precond_file,grad_dm,grad_m0
+    character(len=*), intent(inout) :: precond_file,grad_dm
 
     if(myrank == 0) print*, '|<============= Get System Args =============>|'
 
@@ -48,14 +48,13 @@ module lbfgs_subs
     call getarg(2, input_path_file)
     call getarg(3, solver_file)
     call getarg(4, outputdir)
-    call getarg(5, grad_m0)
-    call getarg(6, grad_dm)
-    call getarg(7, precond_file)
+    call getarg(5, grad_dm)
+    call getarg(6, precond_file)
 
     if(trim(input_path_file) == '' .or. trim(solver_file) == '' &
          .or. trim(outputdir) == '' .or. trim(kernel_parfile) == '' &
-         .or. trim(grad_m0) == '' .or. trim(grad_dm) == '' ) then
-  call exit_mpi("Usage: ./xlbfgs_bm kernel_parfile input_path_file solver_file outputdir grad_m0 grad_dm H0_file[optional]")
+         .or. trim(grad_dm) == '' ) then
+  call exit_mpi("Usage: ./xlbfgs_bm kernel_parfile input_path_file solver_file outputdir grad_dm H0_file[optional]")
     endif
 
     if(myrank == 0) then
@@ -63,7 +62,6 @@ module lbfgs_subs
       print*, "Solver file:", trim(solver_file)
       print*, "Precond file: ", trim(precond_file)
       print*, "Output dir: ", trim(outputdir)
-      print*, "grad_m0 file: ", trim(grad_m0)
       print*, "grad_dm file: ", trim(grad_dm)
       
     endif
@@ -260,17 +258,17 @@ module lbfgs_subs
 
 
 
-    call Parallel_ComputeL2normSquare(sks(:, :, :, :, :, niter), nkernels, &
+    call Parallel_ComputeL2normSquare(yks(:, :, :, :, :, 1), nkernels, &
          jacobian, norm_y)
 
-    call Parallel_ComputeInnerProduct(sks(:, :, :, :, :, niter), &
-                                        yks(:, :, :, :, :, niter), &
+    call Parallel_ComputeInnerProduct(sks(:, :, :, :, :, 1), &
+                                        yks(:, :, :, :, :, 1), &
                                         nkernels, jacobian, tmp)
 
 
     gamma = tmp / norm_y
-    sigma = gamma
-    !sigma = 1.0d0 / gamma
+    !sigma = gamma
+    sigma = 1.0d0 / gamma
 
     ! first round
     do i=1, niter
@@ -284,7 +282,7 @@ module lbfgs_subs
 
 
       ! B0 approximation
-      ak(:, :, :, :, :, i) = sks(:, :, :, :, :, i) * sigma
+      ak(:, :, :, :, :, i) = sks(:, :, :, :, :, i) * sigma * precond
 
 
       do j=1,i - 1,1
@@ -343,7 +341,7 @@ module lbfgs_subs
    enddo
    
 
-   Bm(:, :, :, :, :) = Bm(:, :, :, :, :) + sigma * test_m(:, :, :, :, :)  
+   Bm(:, :, :, :, :) = Bm(:, :, :, :, :) + sigma * test_m(:, :, :, :, :) * precond
 
 
 
@@ -437,8 +435,8 @@ module lbfgs_subs
 
 
 
-  subroutine check_status(grad,dir,jacobian,nkernels)
-    real(kind=CUSTOM_REAL), dimension(:, :, :, :, :), intent(in) :: grad
+  subroutine check_status(grad,dir,jacobian,precond,nkernels)
+    real(kind=CUSTOM_REAL), dimension(:, :, :, :, :), intent(in) :: grad,precond
     integer, intent(in) :: nkernels
     real(kind=CUSTOM_REAL), dimension(:, :, :, :), intent(in) :: jacobian
 
@@ -493,7 +491,7 @@ module lbfgs_subs
     
     if (flag_all .gt. 0) then 
        if(myrank == 0) print*, '|<============= Restarting LBFGS =============>|'
-       dir = -1.0 * grad
+       dir = -1.0 * grad * precond
        
        call Parallel_ComputeInnerProduct(grad, &
                                         grad, &

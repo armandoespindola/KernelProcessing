@@ -89,7 +89,7 @@ program main
   call calculate_LBFGS_direction(niter, NKERNEL_GLOB, jacobian, gradient, precond, yks, sks, direction)
 
   if(myrank == 0) print*, "|<---- L-BFGS Direction (Check Status) ---->|"
-  call check_status(gradient,direction,jacobian,NKERNEL_GLOB)
+  call check_status(gradient,direction,jacobian,precond,NKERNEL_GLOB)
 
   if(myrank == 0) print*, "|<---- L-BFGS Direction (Stats) ---->|"
   do iker = 1,NKERNEL_GLOB

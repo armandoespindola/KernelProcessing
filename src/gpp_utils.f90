@@ -180,7 +180,7 @@ module gpp_utils
             ! postive search direction --> fast anomaly
             !gauss = exp(-(disth / sigmah) ** 2 - (distv / sigmav) ** 2)
             ! negative search direction --> slow anomaly
-            gauss = -exp(- (disth / sigmah) ** 2 - (distv / sigmav) ** 2)
+            gauss = exp(- (disth / sigmah) ** 2 - (distv / sigmav) ** 2)
 
             perturbs(i,j,k,ispec,perturb_idx) = perturbs(i,j,k,ispec,perturb_idx) + gauss
           end do

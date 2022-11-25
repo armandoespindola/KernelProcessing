@@ -285,12 +285,23 @@ program sum_kernels
     if (NHESS0 > 0 ) then
        call read_bp_file_real(kernel_file, HESS_NAMES_GLOB, hessian)
        if (myrank == 0) write(*, *) 'Cliping Hessian 99.8',ievent
-       call clip_sem(kernels,0.9950,NKERNEL_GLOB)
+       call clip_sem(hessian,0.9980,NKERNEL_GLOB)
      
        do idx=NKERNEL_GLOB+1,NKERNEL_GLOB + NHESS0
           total_kernel(:,:,:,:,idx)  = total_kernel(:,:,:,:,idx) + &
                abs(hessian(:,:,:,:,idx - NKERNEL_GLOB)) * weight 
        enddo
+
+       if ((ATTENUATION_FLAG) .and. (len(trim(eventfile_qmu)) .gt. 0)) then
+          if (myrank==0) write(*,*) 'Reading in Hessian (Attenuation)'
+          if (ievent==1) total_kernel(:,:,:,:,KQMU_IDX + NKERNEL_GLOB) = 0.0d0
+          call read_bp_file_real(kernel_file_qmu, &
+               HESS_NAMES_GLOB(KQMU_IDX)(1:len_trim(HESS_NAMES_GLOB(KQMU_IDX))-3), &
+               hessian(:,:,:,:,KQMU_IDX))
+          total_kernel(:,:,:,:,KQMU_IDX + NKERNEL_GLOB)  = &
+               total_kernel(:,:,:,:,KQMU_IDX + NKERNEL_GLOB) + &
+               abs(hessian(:,:,:,:,KQMU_IDX)) * weight
+       endif
     endif
     
  enddo

@@ -527,7 +527,7 @@ module global_var
 
     if (myrank==0) then
        do i=1,NHESS0
-          write(*, '(A,A)')"FIXED MODEL NAMES: " , trim(HESS_NAMES_GLOB(i))
+          write(*, '(A,A)')"HESSIAN NAMES: " , trim(HESS_NAMES_GLOB(i))
        enddo
     endif
 
