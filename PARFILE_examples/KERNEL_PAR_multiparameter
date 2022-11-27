@@ -13,6 +13,6 @@ vph
 rho
 eta
 3
-hess_mu_kl_crust_mantle
-hess_mu_kl_crust_mantle
-hess_mu_kl_crust_mantle_qmu
+vsv_hess_mu_kl_crust_mantle
+vsh_hess_mu_kl_crust_mantle
+qmu_hess_mu_kl_crust_mantle_qmu

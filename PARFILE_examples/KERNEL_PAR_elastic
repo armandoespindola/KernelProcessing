@@ -12,5 +12,5 @@ rho
 eta
 qmu
 2
-hess_mu_kl_crust_mantle
-hess_mu_kl_crust_mantle
+vsv_hess_mu_kl_crust_mantle
+vsh_hess_mu_kl_crust_mantle
