@@ -125,16 +125,22 @@ module preconditioner_subs
    !    endif
    ! enddo
 
-   do ik = 1,nhess
-      if ((ik .ne. KQMU_IDX) .and. (ATTENUATION_FLAG)) then
+   if (ATTENUATION_FLAG) then
+         !call max_all_all_cr(maxval(invHess(:, :, :, :,ik)), maxh_all)
+         !call min_all_all_cr(minval(invHess(:, :, :, :,ik)), minh_all)
+         write(*, *) "Multiparameter Inversion"
+         invHess(:, :, :, :,KQMU_IDX) = invHess(:, :, :, :,KQMU_IDX) * 2.0e+3
+         ! if ((ratio / (maxh_all + minh_all)) > 1000) then
+         !    invHess(:, :, :, :,ik) = invHess(:, :, :, :,ik) * ratio * 1.0e-3 / (maxh_all + minh_all)
+         ! endif
+      endif
+      call max_all_all_cr(maxval(invHess(:, :, :, :,:)), maxh_all)
+      call min_all_all_cr(minval(invHess(:, :, :, :,:)), minh_all)
+      invHess = invHess / maxh_all
+      do ik = 1,nhess
          call max_all_all_cr(maxval(invHess(:, :, :, :,ik)), maxh_all)
          call min_all_all_cr(minval(invHess(:, :, :, :,ik)), minh_all)
-         if ((ratio / (maxh_all + minh_all)) > 1000) then
-            invHess(:, :, :, :,ik) = invHess(:, :, :, :,ik) * ratio * 1.0e-3 / (maxh_all + minh_all)
-         endif
-      endif
-      call max_all_all_cr(maxval(invHess(:, :, :, :,ik)), maxh_all)
-      call min_all_all_cr(minval(invHess(:, :, :, :,ik)), minh_all)
+
       if (myrank == 0) then
          write(*, '(A, ES12.2, 5X, ES12.2, 5X, A, ES12.2)') &
               trim(invNames(ik)), maxh_all, minh_all, &

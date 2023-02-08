@@ -257,6 +257,8 @@ program sum_kernels
              
         call read_bp_file_real(kernel_file, KERNEL_NAMES_GLOB_NQ, kernels)
      else
+        if (myrank==0) write(*,*) 'Reading in kernel (Attenuation) for [', ievent, &
+                "/", nevent, "]: ", trim(kernel_file), " | weight: ", weight
         call read_bp_file_real(kernel_file, KERNEL_NAMES_GLOB, kernels)
      endif
      
@@ -286,9 +288,21 @@ program sum_kernels
        do idx=1,NHESS0
           if (HESS_NAMES_GLOB(idx)(1:4) .ne. &
                "_qmu") then
+             if (myrank == 0) write(*, *) "Reading Hessian ..."
              call read_bp_file_real(kernel_file, &
                   HESS_NAMES_GLOB(idx)(5:len_trim(HESS_NAMES_GLOB(idx))), &
                   hessian(:,:,:,:,idx))
+          else
+             if (len(trim(eventfile_qmu)) .gt. 0) then
+                kernel_file_qmu = kernel_list_qmu(ievent)
+             else
+                kernel_file_qmu = kernel_list(ievent)
+             endif
+             if (myrank == 0) write(*, *) "Reading Hessian (QMU) ..."
+             if (myrank == 0) write(*,*)"(QMU)",HESS_NAMES_GLOB(KQMU_IDX)(1:len_trim(HESS_NAMES_GLOB(KQMU_IDX)))
+             call read_bp_file_real(kernel_file_qmu, &
+                  HESS_NAMES_GLOB(KQMU_IDX)(5:len_trim(HESS_NAMES_GLOB(KQMU_IDX))), &
+                  hessian(:,:,:,:,KQMU_IDX))
           endif
        enddo
        
@@ -302,16 +316,16 @@ program sum_kernels
        enddo
              
 
-       if ((ATTENUATION_FLAG) .and. (len(trim(eventfile_qmu)) .gt. 0)) then
-          if (myrank==0) write(*,*) 'Reading in Hessian (Attenuation)'
-          if (ievent==1) total_kernel(:,:,:,:,KQMU_IDX + NKERNEL_GLOB) = 0.0d0
-          call read_bp_file_real(kernel_file_qmu, &
-               HESS_NAMES_GLOB(KQMU_IDX)(5:len_trim(HESS_NAMES_GLOB(KQMU_IDX))), &
-               hessian(:,:,:,:,KQMU_IDX))
-          total_kernel(:,:,:,:,KQMU_IDX + NKERNEL_GLOB)  = &
-               total_kernel(:,:,:,:,KQMU_IDX + NKERNEL_GLOB) + &
-               abs(hessian(:,:,:,:,KQMU_IDX)) * weight
-       endif
+       ! if ((ATTENUATION_FLAG) .and. (len(trim(eventfile_qmu)) .gt. 0)) then
+       !    if (myrank==0) write(*,*) 'Reading in Hessian (Attenuation)'
+       !    if (ievent==1) total_kernel(:,:,:,:,KQMU_IDX + NKERNEL_GLOB) = 0.0d0
+       !    call read_bp_file_real(kernel_file_qmu, &
+       !         HESS_NAMES_GLOB(KQMU_IDX)(5:len_trim(HESS_NAMES_GLOB(KQMU_IDX))), &
+       !         hessian(:,:,:,:,KQMU_IDX))
+       !    total_kernel(:,:,:,:,KQMU_IDX + NKERNEL_GLOB)  = &
+       !         total_kernel(:,:,:,:,KQMU_IDX + NKERNEL_GLOB) + &
+       !         abs(hessian(:,:,:,:,KQMU_IDX)) * weight
+       ! endif
     endif
     
  enddo
