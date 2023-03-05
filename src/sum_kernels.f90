@@ -287,7 +287,7 @@ program sum_kernels
     if (NHESS0 > 0 ) then
        do idx=1,NHESS0
           if (HESS_NAMES_GLOB(idx)(1:4) .ne. &
-               "_qmu") then
+               "qmu_") then
              if (myrank == 0) write(*, *) "Reading Hessian ..."
              call read_bp_file_real(kernel_file, &
                   HESS_NAMES_GLOB(idx)(5:len_trim(HESS_NAMES_GLOB(idx))), &
