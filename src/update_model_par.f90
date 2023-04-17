@@ -384,6 +384,7 @@ contains
             ! initial model values
             betav0  = models(i,j,k,ispec,VSV_IDX)
             betah0  = models(i,j,k,ispec,VSH_IDX)
+            rho0  = models(i,j,k,ispec,RHO_IDX)
             rho1    = 0._CUSTOM_REAL
 
             ! do not use transverse isotropy except if element is between d220 and Moho
