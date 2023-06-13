@@ -50,13 +50,13 @@ module convert_adios_subs
   subroutine get_short_name(full_name, short_name, is_kernel)
     character(len=*), intent(in) :: full_name
     character(len=*), intent(out) :: short_name
-    logical :: is_kernel
+    logical,intent(inout) :: is_kernel
 
     integer :: slen
 
     slen = len_trim(full_name)
 
-    if ( slen > 16 .and. full_name((slen-15):slen) == 'kl_crust_mantle' ) then
+    if ( slen > 16 .and. full_name((slen-15):slen) == '_kl_crust_mantle' ) then
       short_name = full_name(1:(slen-16)) // "_kernel"
       is_kernel = .true.
     else
